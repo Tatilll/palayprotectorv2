@@ -1,5 +1,12 @@
 [server]
 headless = true
 
+[theme]
+base = "light"
+primaryColor = "#2e7d32"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f0f0"
+textColor = "#000000"
+
 [python]
 version = "3.10"
