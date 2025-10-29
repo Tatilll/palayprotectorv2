@@ -2127,7 +2127,8 @@ elif st.session_state.page == "detect":
                         tmp_file_path = tmp_file.name
                     
                     client = init_client()
-                    result = client.infer(tmp_file_path, model_id="palayprotector-ver-2-gmeok/1")
+                    result = client.infer(tmp_file_path, model_id="palayprotector-ver-2-gmeok/1"
+                    "")
                     
                     if result.get("predictions"):
                         for pred in result["predictions"]:
