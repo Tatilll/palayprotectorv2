@@ -449,14 +449,15 @@ if st.session_state.page == "login":
     
     st.markdown("</div>", unsafe_allow_html=True)
 
+
+
 # ========================================
 # ========== SIGNUP PAGE ==========
 # ========================================
 elif st.session_state.page == "signup":
     import sqlite3
-    import requests
     import hashlib
-    from streamlit_javascript import st_javascript
+    import json
 
     show_header()
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
@@ -469,161 +470,87 @@ elif st.session_state.page == "signup":
     password = st.text_input("Password", type="password", key="signup_password", placeholder="Create a strong password")
     confirm_password = st.text_input("Confirm Password", type="password", key="signup_confirm_password", placeholder="Re-enter your password")
 
-    # --- Farm Location Detection ---
+    # --- Farm Location with Searchable Dropdowns ---
     st.markdown("#### 📍 Farm Location")
-    st.info("💡 Click 'Detect My Location' to automatically fill your location, or enter manually below.")
-
-    # Initialize session state for location if not exists
-    if 'location_detected' not in st.session_state:
-        st.session_state.location_detected = False
-        st.session_state.detected_province = ""
-        st.session_state.detected_municipality = ""
-        st.session_state.detected_barangay = ""
-        st.session_state.detected_latitude = ""
-        st.session_state.detected_longitude = ""
-
-    # Button to detect location
-    if st.button("📍 Detect My Location", key="detect_location_btn", type="primary", use_container_width=True):
-        with st.spinner("Getting your location... Please allow location access if prompted."):
-            try:
-                # Try to get GPS from browser
-                gps_data = st_javascript("""
-                    await new Promise((resolve, reject) => {
-                        if (!navigator.geolocation) {
-                            resolve({error: "Geolocation not supported by your browser"});
-                            return;
-                        }
-                        
-                        navigator.geolocation.getCurrentPosition(
-                            pos => resolve({
-                                lat: pos.coords.latitude, 
-                                lon: pos.coords.longitude,
-                                accuracy: pos.coords.accuracy
-                            }),
-                            err => {
-                                let errorMsg = "Unknown error";
-                                switch(err.code) {
-                                    case err.PERMISSION_DENIED:
-                                        errorMsg = "Location access denied. Please allow location access.";
-                                        break;
-                                    case err.POSITION_UNAVAILABLE:
-                                        errorMsg = "Location information unavailable.";
-                                        break;
-                                    case err.TIMEOUT:
-                                        errorMsg = "Location request timed out.";
-                                        break;
-                                }
-                                resolve({error: errorMsg});
-                            },
-                            { 
-                                enableHighAccuracy: true, 
-                                timeout: 15000, 
-                                maximumAge: 0 
-                            }
-                        );
-                    })
-                """)
-
-                if gps_data and gps_data.get("lat") and gps_data.get("lon"):
-                    latitude = gps_data["lat"]
-                    longitude = gps_data["lon"]
-                    accuracy = gps_data.get('accuracy', 'unknown')
-                    st.success(f"📡 GPS location detected! (Accuracy: ~{accuracy}m)")
-                    
-                    # Convert coordinates to address
-                    try:
-                        url = f"https://nominatim.openstreetmap.org/reverse?lat={latitude}&lon={longitude}&format=json"
-                        response = requests.get(url, headers={"User-Agent": "PalayProtectorApp/1.0"}, timeout=10)
-                        if response.ok:
-                            data = response.json()
-                            address = data.get("address", {})
-                            
-                            # Extract location details
-                            province = address.get("state", "") or address.get("province", "")
-                            municipality = (address.get("city", "") or 
-                                          address.get("municipality", "") or 
-                                          address.get("town", "") or 
-                                          address.get("county", ""))
-                            barangay = (address.get("suburb", "") or 
-                                      address.get("village", "") or 
-                                      address.get("neighbourhood", "") or
-                                      address.get("hamlet", ""))
-                            
-                            # Store in session state
-                            st.session_state.detected_province = province
-                            st.session_state.detected_municipality = municipality
-                            st.session_state.detected_barangay = barangay
-                            st.session_state.detected_latitude = str(round(latitude, 6))
-                            st.session_state.detected_longitude = str(round(longitude, 6))
-                            st.session_state.location_detected = True
-                            
-                            st.info(f"📍 Detected Address: {barangay}, {municipality}, {province}")
-                            st.rerun()
-                        else:
-                            st.warning("⚠️ Got coordinates but couldn't fetch address details.")
-                            st.session_state.detected_latitude = str(round(latitude, 6))
-                            st.session_state.detected_longitude = str(round(longitude, 6))
-                            st.session_state.location_detected = True
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"Address lookup failed: {e}")
-                        st.session_state.detected_latitude = str(round(latitude, 6))
-                        st.session_state.detected_longitude = str(round(longitude, 6))
-                        st.session_state.location_detected = True
-                        st.info("Coordinates saved. Please enter address details manually.")
-                        st.rerun()
-                else:
-                    error_msg = gps_data.get("error", "No GPS data received") if gps_data else "GPS detection failed"
-                    st.error(f"❌ {error_msg}")
-                    st.warning("⚠️ Please allow location access in your browser or enter location manually below.")
-                    
-            except Exception as e:
-                st.error(f"⚠️ Location detection error: {str(e)}")
-                st.warning("Please enter your location manually below.")
-
-    # Show current detected location status
-    if st.session_state.location_detected:
-        st.success("✅ Location detected successfully! Review and edit if needed.")
-
-    # --- Manual / Auto-fill fields ---
-    st.markdown("##### Location Details")
-    province = st.text_input(
-        "Province *", 
-        value=st.session_state.detected_province, 
-        placeholder="e.g., Sorsogon",
-        help="Auto-filled from GPS or enter manually",
-        key="province_input"
+    
+    # Philippine Provinces (alphabetical)
+    PROVINCES = [
+        "Abra", "Agusan del Norte", "Agusan del Sur", "Aklan", "Albay", "Antique", "Apayao", "Aurora",
+        "Basilan", "Bataan", "Batanes", "Batangas", "Benguet", "Biliran", "Bohol", "Bukidnon", "Bulacan",
+        "Cagayan", "Camarines Norte", "Camarines Sur", "Camiguin", "Capiz", "Catanduanes", "Cavite",
+        "Cebu", "Cotabato", "Davao de Oro", "Davao del Norte", "Davao del Sur", "Davao Occidental", 
+        "Davao Oriental", "Dinagat Islands", "Eastern Samar", "Guimaras", "Ifugao", "Ilocos Norte", 
+        "Ilocos Sur", "Iloilo", "Isabela", "Kalinga", "La Union", "Laguna", "Lanao del Norte", 
+        "Lanao del Sur", "Leyte", "Maguindanao", "Marinduque", "Masbate", "Misamis Occidental", 
+        "Misamis Oriental", "Mountain Province", "Negros Occidental", "Negros Oriental", "Northern Samar",
+        "Nueva Ecija", "Nueva Vizcaya", "Occidental Mindoro", "Oriental Mindoro", "Palawan", "Pampanga",
+        "Pangasinan", "Quezon", "Quirino", "Rizal", "Romblon", "Samar", "Sarangani", "Siquijor", "Sorsogon",
+        "South Cotabato", "Southern Leyte", "Sultan Kudarat", "Sulu", "Surigao del Norte", "Surigao del Sur",
+        "Tarlac", "Tawi-Tawi", "Zambales", "Zamboanga del Norte", "Zamboanga del Sur", "Zamboanga Sibugay",
+        # Metro Manila
+        "Metro Manila"
+    ]
+    
+    # Cities/Municipalities per Province (sample - you can add more)
+    MUNICIPALITIES = {
+        "Sorsogon": ["Barcelona", "Bulan", "Bulusan", "Casiguran", "Castilla", "Donsol", "Gubat", 
+                     "Irosin", "Juban", "Magallanes", "Matnog", "Pilar", "Prieto Diaz", "Santa Magdalena", 
+                     "Sorsogon City"],
+        "Albay": ["Bacacay", "Camalig", "Daraga", "Guinobatan", "Jovellar", "Legazpi City", "Libon", 
+                  "Ligao City", "Malilipot", "Malinao", "Manito", "Oas", "Pio Duran", "Polangui", 
+                  "Rapu-Rapu", "Santo Domingo", "Tabaco City", "Tiwi"],
+        "Camarines Sur": ["Baao", "Balatan", "Bato", "Bombon", "Buhi", "Bula", "Cabusao", "Calabanga",
+                         "Camaligan", "Canaman", "Caramoan", "Del Gallego", "Gainza", "Garchitorena", "Goa",
+                         "Iriga City", "Lagonoy", "Libmanan", "Lupi", "Magarao", "Milaor", "Minalabac",
+                         "Nabua", "Naga City", "Ocampo", "Pamplona", "Pasacao", "Pili", "Presentacion",
+                         "Ragay", "Sagñay", "San Fernando", "San Jose", "Sipocot", "Siruma", "Tigaon", "Tinambac"],
+        "Metro Manila": ["Caloocan", "Las Piñas", "Makati", "Malabon", "Mandaluyong", "Manila", "Marikina",
+                        "Muntinlupa", "Navotas", "Parañaque", "Pasay", "Pasig", "Pateros", "Quezon City",
+                        "San Juan", "Taguig", "Valenzuela"],
+        # Add more provinces and their municipalities here
+    }
+    
+    # Province selectbox with search
+    province = st.selectbox(
+        "Province *",
+        options=[""] + PROVINCES,
+        index=0,
+        placeholder="Select your province",
+        key="province_select",
+        help="Type to search for your province"
     )
-    municipality = st.text_input(
-        "Municipality / City *", 
-        value=st.session_state.detected_municipality, 
-        placeholder="e.g., San Vicente",
-        key="municipality_input"
-    )
+    
+    # Municipality/City selectbox (depends on selected province)
+    if province and province in MUNICIPALITIES:
+        municipality = st.selectbox(
+            "Municipality / City *",
+            options=[""] + MUNICIPALITIES[province],
+            index=0,
+            placeholder="Select your municipality",
+            key="municipality_select",
+            help="Type to search for your municipality"
+        )
+    else:
+        municipality = st.text_input(
+            "Municipality / City *",
+            placeholder="e.g., San Vicente",
+            key="municipality_input",
+            help="Enter your municipality (autocomplete not available for this province yet)"
+        )
+    
+    # Barangay input
     barangay = st.text_input(
-        "Barangay", 
-        value=st.session_state.detected_barangay, 
-        placeholder="e.g., Poblacion",
+        "Barangay",
+        placeholder="e.g., Poblacion, San Roque, etc.",
         key="barangay_input"
     )
     
-    col1, col2 = st.columns(2)
-    with col1:
-        latitude = st.text_input(
-            "Latitude", 
-            value=st.session_state.detected_latitude, 
-            placeholder="e.g., 12.663025",
-            help="Decimal degrees format",
-            key="latitude_input"
-        )
-    with col2:
-        longitude = st.text_input(
-            "Longitude", 
-            value=st.session_state.detected_longitude, 
-            placeholder="e.g., 123.879346",
-            help="Decimal degrees format",
-            key="longitude_input"
-        )
+    # Street/Purok input
+    street = st.text_input(
+        "Street / Purok (Optional)",
+        placeholder="e.g., Purok 1, Main Street, etc.",
+        key="street_input"
+    )
 
     # --- Admin Setup ---
     st.markdown("---")
@@ -647,7 +574,7 @@ elif st.session_state.page == "signup":
     st.markdown("---")
     
     # --- Create Account ---
-    if st.button("✅ Create Account", key="create_account", use_container_width=True, type="primary"):
+    if st.button("✅ Create Account", key="create_account_btn", use_container_width=True, type="primary"):
         # Validation
         if not all([username, email, phone, password, confirm_password]):
             st.error("❌ Please fill in all required fields.")
@@ -672,19 +599,20 @@ elif st.session_state.page == "signup":
                     
                     # Determine user type
                     user_type = "admin" if show_admin_key and admin_key == ADMIN_SECRET_KEY else "farmer"
+                    
+                    # Combine street and barangay for full address
+                    full_address = f"{street}, {barangay}" if street else barangay
 
                     # Insert new user
                     cursor.execute('''
                         INSERT INTO users (
                             username, email, phone, password,
                             province, municipality, barangay,
-                            latitude, longitude, user_type
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            user_type
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         username, email, phone, hashed_pw,
-                        province, municipality, barangay,
-                        latitude if latitude else None, 
-                        longitude if longitude else None, 
+                        province, municipality, full_address,
                         user_type
                     ))
                     conn.commit()
@@ -695,14 +623,7 @@ elif st.session_state.page == "signup":
                     else:
                         st.success("✅ Farmer account created successfully! Please log in.")
                     
-                    # Clear location session state
-                    for key in ['location_detected', 'detected_province', 'detected_municipality', 
-                               'detected_barangay', 'detected_latitude', 'detected_longitude']:
-                        if key in st.session_state:
-                            del st.session_state[key]
-                    
                     st.balloons()
-                    time.sleep(1)
                     st.session_state.page = "login"
                     st.rerun()
                     
@@ -712,27 +633,13 @@ elif st.session_state.page == "signup":
                 conn.close()
 
     # --- Back to Login ---
-    if st.button("← Back to Login", key="back_to_login", use_container_width=True):
-        # Clear location session state
-        for key in ['location_detected', 'detected_province', 'detected_municipality', 
-                   'detected_barangay', 'detected_latitude', 'detected_longitude']:
-            if key in st.session_state:
-                del st.session_state[key]
+    if st.button("← Back to Login", key="signup_back_to_login_btn", use_container_width=True):
         st.session_state.page = "login"
         st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- Back to Login ---
-    if st.button("Back to Login", key="back_to_login", use_container_width=True):
-        # Clear location session state
-        for key in ['detected_province', 'detected_municipality', 'detected_barangay', 'detected_latitude', 'detected_longitude']:
-            if key in st.session_state:
-                del st.session_state[key]
-        st.session_state.page = "login"
-        st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ========== ADMIN DASHBOARD ==========
