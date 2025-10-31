@@ -449,56 +449,77 @@ if st.session_state.page == "login":
     
     st.markdown("</div>", unsafe_allow_html=True)
 
+# ========================================
 # ========== SIGNUP PAGE ==========
+# ========================================
 elif st.session_state.page == "signup":
     show_header()
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
-
     st.markdown("### Create New Account")
 
-    user_type = st.selectbox(
-        "I am a...",
-        ["Farmer", "Admin"],
-        key="signup_user_type",
-        help="Select your account type"
-    )
-    
-    st.info(f"Creating a **{user_type}** account")
-
+    # --- Inputs ---
     username = st.text_input("Username", key="signup_username", placeholder="Choose a username")
     email = st.text_input("Email", key="signup_email", placeholder="your.email@example.com")
     phone = st.text_input("Phone Number", key="signup_phone", placeholder="+63 XXX XXX XXXX")
     password = st.text_input("Password", type="password", key="signup_password", placeholder="Create a strong password")
     confirm_password = st.text_input("Confirm Password", type="password", key="signup_confirm_password", placeholder="Re-enter your password")
-   
-    if st.button("Create Account", key="create_account"):
-        if not all([username, email, phone, password, confirm_password]):
-            st.error("Please fill in all fields")
-        elif password != confirm_password:
-            st.error("Passwords do not match")
-        else:
-            try:
-                conn = sqlite3.connect("users.db")
-                cursor = conn.cursor()
-                cursor.execute('''
-                    INSERT INTO users (username, email, phone, password, user_type)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (username, email, phone, password, user_type.lower()))
-                conn.commit()
-                st.success(f"{user_type} account created successfully!")
-                st.balloons()
-                st.session_state.page = "login"
-                st.rerun()
-            except sqlite3.IntegrityError:
-                st.error("Username already exists. Please choose a different one.")
-            finally:
-                conn.close()
 
-    if st.button("Back to Login", key="back_to_login"):
-        st.session_state.page = "login"
-        st.rerun()
+    # --- Farm Location Detection ---
+    st.markdown("#### 📍 Farm Location (using Real GPS)")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    from streamlit_javascript import st_javascript
+    import requests
+
+    # Initialize empty values
+    province = ""
+    municipality = ""
+    barangay = ""
+    latitude = ""
+    longitude = ""
+
+    # Detect button
+    if st.button("📍 Detect My Location"):
+        try:
+            # Request real GPS from browser
+            location = st_javascript("""
+                await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(
+                        pos => resolve({lat: pos.coords.latitude, lon: pos.coords.longitude}),
+                        err => reject(err),
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                    );
+                })
+            """)
+
+            if location:
+                latitude = str(location["lat"])
+                longitude = str(location["lon"])
+                st.success(f"✅ Detected GPS coordinates: {latitude}, {longitude}")
+
+                # Reverse-geocode coordinates to readable address
+                url = f"https://nominatim.openstreetmap.org/reverse?lat={latitude}&lon={longitude}&format=json"
+                response = requests.get(url, headers={"User-Agent": "PalayProtectorApp/1.0"})
+                if response.ok:
+                    data = response.json()
+                    address = data.get("address", {})
+                    province = address.get("state", "")
+                    municipality = address.get("city", "") or address.get("town", "") or address.get("county", "")
+                    barangay = address.get("suburb", "") or address.get("village", "")
+                    st.info(f"📍 Detected location: {barangay}, {municipality}, {province}")
+                else:
+                    st.warning("Unable to fetch exact address details (API error).")
+            else:
+                st.warning("⚠️ GPS not available or permission denied.")
+
+        except Exception as e:
+            st.error(f"Error detecting location: {e}")
+
+    # Display editable fields (auto-filled if detection worked)
+    province = st.text_input("Province", value=province, placeholder="e.g., Sorsogon")
+    municipality = st.text_input("Municipality / City", value=municipality, placeholder="e.g., Bulan")
+    barangay = st.text_input("Barangay", value=barangay, placeholder="e.g., Poblacion")
+    latitude = st.text_input("Latitude", value=latitude, placeholder="Auto-detected or enter manually")
+    longitude = st.text_input("Longitude", value=longitude, placeholder="Auto-detected or enter manually")
 
 # ========== ADMIN DASHBOARD ==========
 elif st.session_state.page == "admin_dashboard":
