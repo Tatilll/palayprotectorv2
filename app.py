@@ -455,7 +455,6 @@ if st.session_state.page == "login":
 elif st.session_state.page == "signup":
     import sqlite3
     import requests
-    import geocoder
     import hashlib
     from streamlit_javascript import st_javascript
 
@@ -472,108 +471,209 @@ elif st.session_state.page == "signup":
 
     # --- Farm Location Detection ---
     st.markdown("#### 📍 Farm Location")
-    
-    # Initialize variables
-    latitude, longitude, province, municipality, barangay = "", "", "", "", ""
-    location_method = "Not detected"
+    st.info("💡 Click 'Detect My Location' to automatically fill your location, or enter manually below.")
+
+    # Initialize session state for location if not exists
+    if 'location_detected' not in st.session_state:
+        st.session_state.location_detected = False
+        st.session_state.detected_province = ""
+        st.session_state.detected_municipality = ""
+        st.session_state.detected_barangay = ""
+        st.session_state.detected_latitude = ""
+        st.session_state.detected_longitude = ""
 
     # Button to detect location
-    if st.button("📍 Detect My Location", key="detect_location_btn"):
-        try:
-            # Try to get GPS from browser
-            gps_data = st_javascript("""
-                await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(
-                        pos => resolve({lat: pos.coords.latitude, lon: pos.coords.longitude}),
-                        err => resolve(null),
-                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                    );
-                })
-            """)
-
-            if gps_data and gps_data.get("lat") and gps_data.get("lon"):
-                latitude = gps_data["lat"]
-                longitude = gps_data["lon"]
-                location_method = "GPS"
-                st.success(f"📡 GPS location detected: {latitude}, {longitude}")
-            else:
-                # Fallback to IP
-                g = geocoder.ip('me')
-                if g.latlng:
-                    latitude, longitude = g.latlng
-                    location_method = "IP"
-                    st.info(f"🌐 Using IP-based location: {latitude}, {longitude}")
-                else:
-                    st.warning("⚠️ Unable to detect location. Please enter manually.")
-
-        except Exception as e:
-            st.warning(f"⚠️ Location detection failed. Please enter manually.")
-            g = geocoder.ip('me')
-            if g.latlng:
-                latitude, longitude = g.latlng
-                location_method = "IP"
-
-        # Convert coordinates to address
-        if latitude and longitude:
+    if st.button("📍 Detect My Location", key="detect_location_btn", type="primary", use_container_width=True):
+        with st.spinner("Getting your location... Please allow location access if prompted."):
             try:
-                url = f"https://nominatim.openstreetmap.org/reverse?lat={latitude}&lon={longitude}&format=json"
-                response = requests.get(url, headers={"User-Agent": "PalayProtectorApp/1.0"})
-                if response.ok:
-                    data = response.json()
-                    address = data.get("address", {})
-                    province = address.get("state", "")
-                    municipality = address.get("city", "") or address.get("town", "") or address.get("county", "")
-                    barangay = address.get("suburb", "") or address.get("village", "")
-                    
-                    # Store in session state to persist after button click
-                    st.session_state.detected_province = province
-                    st.session_state.detected_municipality = municipality
-                    st.session_state.detected_barangay = barangay
-                    st.session_state.detected_latitude = latitude
-                    st.session_state.detected_longitude = longitude
-                    st.rerun()
-            except Exception as e:
-                st.error(f"Reverse geocoding failed: {e}")
+                # Try to get GPS from browser
+                gps_data = st_javascript("""
+                    await new Promise((resolve, reject) => {
+                        if (!navigator.geolocation) {
+                            resolve({error: "Geolocation not supported by your browser"});
+                            return;
+                        }
+                        
+                        navigator.geolocation.getCurrentPosition(
+                            pos => resolve({
+                                lat: pos.coords.latitude, 
+                                lon: pos.coords.longitude,
+                                accuracy: pos.coords.accuracy
+                            }),
+                            err => {
+                                let errorMsg = "Unknown error";
+                                switch(err.code) {
+                                    case err.PERMISSION_DENIED:
+                                        errorMsg = "Location access denied. Please allow location access.";
+                                        break;
+                                    case err.POSITION_UNAVAILABLE:
+                                        errorMsg = "Location information unavailable.";
+                                        break;
+                                    case err.TIMEOUT:
+                                        errorMsg = "Location request timed out.";
+                                        break;
+                                }
+                                resolve({error: errorMsg});
+                            },
+                            { 
+                                enableHighAccuracy: true, 
+                                timeout: 15000, 
+                                maximumAge: 0 
+                            }
+                        );
+                    })
+                """)
 
-    # Get values from session state if available
-    province = st.session_state.get('detected_province', province)
-    municipality = st.session_state.get('detected_municipality', municipality)
-    barangay = st.session_state.get('detected_barangay', barangay)
-    latitude = st.session_state.get('detected_latitude', latitude)
-    longitude = st.session_state.get('detected_longitude', longitude)
+                if gps_data and gps_data.get("lat") and gps_data.get("lon"):
+                    latitude = gps_data["lat"]
+                    longitude = gps_data["lon"]
+                    accuracy = gps_data.get('accuracy', 'unknown')
+                    st.success(f"📡 GPS location detected! (Accuracy: ~{accuracy}m)")
+                    
+                    # Convert coordinates to address
+                    try:
+                        url = f"https://nominatim.openstreetmap.org/reverse?lat={latitude}&lon={longitude}&format=json"
+                        response = requests.get(url, headers={"User-Agent": "PalayProtectorApp/1.0"}, timeout=10)
+                        if response.ok:
+                            data = response.json()
+                            address = data.get("address", {})
+                            
+                            # Extract location details
+                            province = address.get("state", "") or address.get("province", "")
+                            municipality = (address.get("city", "") or 
+                                          address.get("municipality", "") or 
+                                          address.get("town", "") or 
+                                          address.get("county", ""))
+                            barangay = (address.get("suburb", "") or 
+                                      address.get("village", "") or 
+                                      address.get("neighbourhood", "") or
+                                      address.get("hamlet", ""))
+                            
+                            # Store in session state
+                            st.session_state.detected_province = province
+                            st.session_state.detected_municipality = municipality
+                            st.session_state.detected_barangay = barangay
+                            st.session_state.detected_latitude = str(round(latitude, 6))
+                            st.session_state.detected_longitude = str(round(longitude, 6))
+                            st.session_state.location_detected = True
+                            
+                            st.info(f"📍 Detected Address: {barangay}, {municipality}, {province}")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Got coordinates but couldn't fetch address details.")
+                            st.session_state.detected_latitude = str(round(latitude, 6))
+                            st.session_state.detected_longitude = str(round(longitude, 6))
+                            st.session_state.location_detected = True
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"Address lookup failed: {e}")
+                        st.session_state.detected_latitude = str(round(latitude, 6))
+                        st.session_state.detected_longitude = str(round(longitude, 6))
+                        st.session_state.location_detected = True
+                        st.info("Coordinates saved. Please enter address details manually.")
+                        st.rerun()
+                else:
+                    error_msg = gps_data.get("error", "No GPS data received") if gps_data else "GPS detection failed"
+                    st.error(f"❌ {error_msg}")
+                    st.warning("⚠️ Please allow location access in your browser or enter location manually below.")
+                    
+            except Exception as e:
+                st.error(f"⚠️ Location detection error: {str(e)}")
+                st.warning("Please enter your location manually below.")
+
+    # Show current detected location status
+    if st.session_state.location_detected:
+        st.success("✅ Location detected successfully! Review and edit if needed.")
 
     # --- Manual / Auto-fill fields ---
-    province = st.text_input("Province", value=province, placeholder="e.g., Sorsogon")
-    municipality = st.text_input("Municipality / City", value=municipality, placeholder="e.g., Bulan")
-    barangay = st.text_input("Barangay", value=barangay, placeholder="e.g., Poblacion")
-    latitude = st.text_input("Latitude", value=str(latitude) if latitude else "", placeholder="Auto-detected or enter manually")
-    longitude = st.text_input("Longitude", value=str(longitude) if longitude else "", placeholder="Auto-detected or enter manually")
+    st.markdown("##### Location Details")
+    province = st.text_input(
+        "Province *", 
+        value=st.session_state.detected_province, 
+        placeholder="e.g., Sorsogon",
+        help="Auto-filled from GPS or enter manually",
+        key="province_input"
+    )
+    municipality = st.text_input(
+        "Municipality / City *", 
+        value=st.session_state.detected_municipality, 
+        placeholder="e.g., San Vicente",
+        key="municipality_input"
+    )
+    barangay = st.text_input(
+        "Barangay", 
+        value=st.session_state.detected_barangay, 
+        placeholder="e.g., Poblacion",
+        key="barangay_input"
+    )
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        latitude = st.text_input(
+            "Latitude", 
+            value=st.session_state.detected_latitude, 
+            placeholder="e.g., 12.663025",
+            help="Decimal degrees format",
+            key="latitude_input"
+        )
+    with col2:
+        longitude = st.text_input(
+            "Longitude", 
+            value=st.session_state.detected_longitude, 
+            placeholder="e.g., 123.879346",
+            help="Decimal degrees format",
+            key="longitude_input"
+        )
 
     # --- Admin Setup ---
-    show_admin_key = st.checkbox("🔽 Show advanced admin setup", key="signup_admin_toggle", help="For system administrators only")
+    st.markdown("---")
+    show_admin_key = st.checkbox(
+        "🔽 Show advanced admin setup", 
+        key="signup_admin_toggle", 
+        help="For system administrators only"
+    )
+    
     ADMIN_SECRET_KEY = "palay_secret_2025"
-
     admin_key = ""
+    
     if show_admin_key:
-        admin_key = st.text_input("🔐 Admin Access Key", type="password", key="admin_key_input", placeholder="Enter secret admin key")
+        admin_key = st.text_input(
+            "🔐 Admin Access Key", 
+            type="password", 
+            key="admin_key_input", 
+            placeholder="Enter secret admin key"
+        )
 
+    st.markdown("---")
+    
     # --- Create Account ---
-    if st.button("Create Account", key="create_account", use_container_width=True):
+    if st.button("✅ Create Account", key="create_account", use_container_width=True, type="primary"):
+        # Validation
         if not all([username, email, phone, password, confirm_password]):
-            st.error("Please fill in all fields.")
+            st.error("❌ Please fill in all required fields.")
         elif password != confirm_password:
-            st.error("Passwords do not match.")
+            st.error("❌ Passwords do not match.")
+        elif len(password) < 6:
+            st.error("❌ Password must be at least 6 characters long.")
+        elif not province or not municipality:
+            st.error("❌ Province and Municipality are required.")
         else:
             try:
                 conn = sqlite3.connect("users.db")
                 cursor = conn.cursor()
+                
+                # Check if username or email already exists
                 cursor.execute("SELECT * FROM users WHERE username = ? OR email = ?", (username, email))
                 if cursor.fetchone():
-                    st.warning("Username or Email already exists.")
+                    st.warning("⚠️ Username or Email already exists. Please choose another.")
                 else:
+                    # Hash password
                     hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+                    
+                    # Determine user type
                     user_type = "admin" if show_admin_key and admin_key == ADMIN_SECRET_KEY else "farmer"
 
+                    # Insert new user
                     cursor.execute('''
                         INSERT INTO users (
                             username, email, phone, password,
@@ -583,27 +683,45 @@ elif st.session_state.page == "signup":
                     ''', (
                         username, email, phone, hashed_pw,
                         province, municipality, barangay,
-                        latitude, longitude, user_type
+                        latitude if latitude else None, 
+                        longitude if longitude else None, 
+                        user_type
                     ))
                     conn.commit()
 
+                    # Success message
                     if user_type == "admin":
                         st.success("🎉 Admin account created successfully!")
                     else:
                         st.success("✅ Farmer account created successfully! Please log in.")
                     
                     # Clear location session state
-                    for key in ['detected_province', 'detected_municipality', 'detected_barangay', 'detected_latitude', 'detected_longitude']:
+                    for key in ['location_detected', 'detected_province', 'detected_municipality', 
+                               'detected_barangay', 'detected_latitude', 'detected_longitude']:
                         if key in st.session_state:
                             del st.session_state[key]
                     
                     st.balloons()
+                    time.sleep(1)
                     st.session_state.page = "login"
                     st.rerun()
+                    
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"❌ Error creating account: {e}")
             finally:
                 conn.close()
+
+    # --- Back to Login ---
+    if st.button("← Back to Login", key="back_to_login", use_container_width=True):
+        # Clear location session state
+        for key in ['location_detected', 'detected_province', 'detected_municipality', 
+                   'detected_barangay', 'detected_latitude', 'detected_longitude']:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.session_state.page = "login"
+        st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # --- Back to Login ---
     if st.button("Back to Login", key="back_to_login", use_container_width=True):
