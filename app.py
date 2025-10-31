@@ -471,61 +471,83 @@ elif st.session_state.page == "signup":
     confirm_password = st.text_input("Confirm Password", type="password", key="signup_confirm_password", placeholder="Re-enter your password")
 
     # --- Farm Location Detection ---
-    st.markdown("#### 📍 Farm Location (using GPS + IP fallback)")
-
+    st.markdown("#### 📍 Farm Location")
+    
+    # Initialize variables
     latitude, longitude, province, municipality, barangay = "", "", "", "", ""
+    location_method = "Not detected"
 
-    # Try to get GPS from browser
-    try:
-        gps_data = st_javascript("""
-            await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(
-                    pos => resolve({lat: pos.coords.latitude, lon: pos.coords.longitude}),
-                    err => resolve(null),
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                );
-            })
-        """)
-
-        if gps_data:
-            latitude = gps_data["lat"]
-            longitude = gps_data["lon"]
-            st.success(f"📡 Using GPS-based location: {latitude}, {longitude}")
-        else:
-            # fallback to IP if GPS denied
-            g = geocoder.ip('me')
-            latitude, longitude = g.latlng if g.latlng else (None, None)
-            st.info(f"🌐 Using approximate IP-based location: {latitude}, {longitude}")
-
-    except Exception as e:
-        st.warning(f"⚠️ Unable to access GPS. Using IP fallback.")
-        g = geocoder.ip('me')
-        latitude, longitude = g.latlng if g.latlng else (None, None)
-
-    # Convert coordinates into readable address
-    if latitude and longitude:
+    # Button to detect location
+    if st.button("📍 Detect My Location", key="detect_location_btn"):
         try:
-            url = f"https://nominatim.openstreetmap.org/reverse?lat={latitude}&lon={longitude}&format=json"
-            response = requests.get(url, headers={"User-Agent": "PalayProtectorApp/1.0"})
-            if response.ok:
-                data = response.json()
-                address = data.get("address", {})
-                province = address.get("state", "")
-                municipality = address.get("city", "") or address.get("town", "") or address.get("county", "")
-                barangay = address.get("suburb", "") or address.get("village", "")
-                if "Oregon" in province:
-                    st.warning("📍 Note: This is the Streamlit server location (Oregon, USA), not your real GPS.")
+            # Try to get GPS from browser
+            gps_data = st_javascript("""
+                await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(
+                        pos => resolve({lat: pos.coords.latitude, lon: pos.coords.longitude}),
+                        err => resolve(null),
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                    );
+                })
+            """)
+
+            if gps_data and gps_data.get("lat") and gps_data.get("lon"):
+                latitude = gps_data["lat"]
+                longitude = gps_data["lon"]
+                location_method = "GPS"
+                st.success(f"📡 GPS location detected: {latitude}, {longitude}")
             else:
-                st.warning("Unable to fetch detailed address (API issue).")
+                # Fallback to IP
+                g = geocoder.ip('me')
+                if g.latlng:
+                    latitude, longitude = g.latlng
+                    location_method = "IP"
+                    st.info(f"🌐 Using IP-based location: {latitude}, {longitude}")
+                else:
+                    st.warning("⚠️ Unable to detect location. Please enter manually.")
+
         except Exception as e:
-            st.error(f"Reverse geocoding failed: {e}")
+            st.warning(f"⚠️ Location detection failed. Please enter manually.")
+            g = geocoder.ip('me')
+            if g.latlng:
+                latitude, longitude = g.latlng
+                location_method = "IP"
+
+        # Convert coordinates to address
+        if latitude and longitude:
+            try:
+                url = f"https://nominatim.openstreetmap.org/reverse?lat={latitude}&lon={longitude}&format=json"
+                response = requests.get(url, headers={"User-Agent": "PalayProtectorApp/1.0"})
+                if response.ok:
+                    data = response.json()
+                    address = data.get("address", {})
+                    province = address.get("state", "")
+                    municipality = address.get("city", "") or address.get("town", "") or address.get("county", "")
+                    barangay = address.get("suburb", "") or address.get("village", "")
+                    
+                    # Store in session state to persist after button click
+                    st.session_state.detected_province = province
+                    st.session_state.detected_municipality = municipality
+                    st.session_state.detected_barangay = barangay
+                    st.session_state.detected_latitude = latitude
+                    st.session_state.detected_longitude = longitude
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Reverse geocoding failed: {e}")
+
+    # Get values from session state if available
+    province = st.session_state.get('detected_province', province)
+    municipality = st.session_state.get('detected_municipality', municipality)
+    barangay = st.session_state.get('detected_barangay', barangay)
+    latitude = st.session_state.get('detected_latitude', latitude)
+    longitude = st.session_state.get('detected_longitude', longitude)
 
     # --- Manual / Auto-fill fields ---
     province = st.text_input("Province", value=province, placeholder="e.g., Sorsogon")
     municipality = st.text_input("Municipality / City", value=municipality, placeholder="e.g., Bulan")
     barangay = st.text_input("Barangay", value=barangay, placeholder="e.g., Poblacion")
-    latitude = st.text_input("Latitude", value=latitude, placeholder="Auto-detected or enter manually")
-    longitude = st.text_input("Longitude", value=longitude, placeholder="Auto-detected or enter manually")
+    latitude = st.text_input("Latitude", value=str(latitude) if latitude else "", placeholder="Auto-detected or enter manually")
+    longitude = st.text_input("Longitude", value=str(longitude) if longitude else "", placeholder="Auto-detected or enter manually")
 
     # --- Admin Setup ---
     show_admin_key = st.checkbox("🔽 Show advanced admin setup", key="signup_admin_toggle", help="For system administrators only")
@@ -569,6 +591,12 @@ elif st.session_state.page == "signup":
                         st.success("🎉 Admin account created successfully!")
                     else:
                         st.success("✅ Farmer account created successfully! Please log in.")
+                    
+                    # Clear location session state
+                    for key in ['detected_province', 'detected_municipality', 'detected_barangay', 'detected_latitude', 'detected_longitude']:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    
                     st.balloons()
                     st.session_state.page = "login"
                     st.rerun()
@@ -579,6 +607,10 @@ elif st.session_state.page == "signup":
 
     # --- Back to Login ---
     if st.button("Back to Login", key="back_to_login", use_container_width=True):
+        # Clear location session state
+        for key in ['detected_province', 'detected_municipality', 'detected_barangay', 'detected_latitude', 'detected_longitude']:
+            if key in st.session_state:
+                del st.session_state[key]
         st.session_state.page = "login"
         st.rerun()
 
