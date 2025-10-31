@@ -469,9 +469,6 @@ elif st.session_state.page == "signup":
     phone = st.text_input("Phone Number", key="signup_phone", placeholder="+63 XXX XXX XXXX")
     password = st.text_input("Password", type="password", key="signup_password", placeholder="Create a strong password")
     confirm_password = st.text_input("Confirm Password", type="password", key="signup_confirm_password", placeholder="Re-enter your password")
-
-    # --- Farm Location with Searchable Dropdowns ---
-    st.markdown("#### 📍 Farm Location")
     
     # Philippine Provinces (alphabetical)
     PROVINCES = [
