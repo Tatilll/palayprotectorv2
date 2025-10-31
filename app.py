@@ -464,62 +464,60 @@ elif st.session_state.page == "signup":
     password = st.text_input("Password", type="password", key="signup_password", placeholder="Create a strong password")
     confirm_password = st.text_input("Confirm Password", type="password", key="signup_confirm_password", placeholder="Re-enter your password")
 
-    # --- Farm Location Detection ---
     st.markdown("#### 📍 Farm Location (using GPS + IP fallback)")
 
-    from streamlit_javascript import st_javascript
-    import requests, geocoder
-    import hashlib
-     
-    # Initialize empty values
-    province = ""
-    municipality = ""
-    barangay = ""
-    latitude = ""
-    longitude = ""
+from streamlit_javascript import st_javascript
+import requests
+import geocoder
+import hashlib
 
-    # Detect button
-    if st.button("📍 Detect My Location"):
-        try:
-            # Try real GPS first
-            location = st_javascript("""
-                await new Promise((resolve) => {
-                    navigator.geolocation.getCurrentPosition(
-                        pos => resolve({lat: pos.coords.latitude, lon: pos.coords.longitude}),
-                        err => resolve(null),
-                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                    );
-                });
-            """)
+latitude, longitude, province, municipality, barangay = "", "", "", "", ""
 
-            if location:
-                latitude = str(location["lat"])
-                longitude = str(location["lon"])
-                st.success(f"✅ Detected precise GPS: {latitude}, {longitude}")
-            else:
-                # Fallback: use IP-based location
-                g = geocoder.ip('me')
-                if g.ok and g.latlng:
-                    latitude, longitude = map(str, g.latlng)
-                    st.info(f"🌐 Using approximate IP-based location: {latitude}, {longitude}")
-                else:
-                    st.warning("❌ Unable to detect location automatically. Please enter manually.")
+# Try to get GPS from browser
+try:
+    gps_data = st_javascript("""
+        await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+                pos => resolve({lat: pos.coords.latitude, lon: pos.coords.longitude}),
+                err => resolve(null),
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        })
+    """)
 
-            # Reverse-geocode if coordinates available
-            if latitude and longitude:
-                url = f"https://nominatim.openstreetmap.org/reverse?lat={latitude}&lon={longitude}&format=json"
-                response = requests.get(url, headers={"User-Agent": "PalayProtectorApp/1.0"})
-                if response.ok:
-                    data = response.json()
-                    address = data.get("address", {})
-                    province = address.get("state", "")
-                    municipality = address.get("city", "") or address.get("town", "") or address.get("county", "")
-                    barangay = address.get("suburb", "") or address.get("village", "")
-                    st.info(f"📍 Detected location: {barangay}, {municipality}, {province}")
-                else:
-                    st.warning("Unable to fetch address details.")
-        except Exception as e:
-            st.error(f"Error detecting location: {e}")
+    if gps_data:
+        latitude = gps_data["lat"]
+        longitude = gps_data["lon"]
+        st.success(f"📡 Using GPS-based location: {latitude}, {longitude}")
+    else:
+        # fallback to IP if GPS denied
+        g = geocoder.ip('me')
+        latitude, longitude = g.latlng if g.latlng else (None, None)
+        st.info(f"🌐 Using approximate IP-based location: {latitude}, {longitude}")
+
+except Exception as e:
+    st.warning(f"⚠️ Unable to access GPS. Using IP fallback: {e}")
+    g = geocoder.ip('me')
+    latitude, longitude = g.latlng if g.latlng else (None, None)
+
+# Try to convert coordinates into readable address
+if latitude and longitude:
+    try:
+        url = f"https://nominatim.openstreetmap.org/reverse?lat={latitude}&lon={longitude}&format=json"
+        response = requests.get(url, headers={"User-Agent": "PalayProtectorApp/1.0"})
+        if response.ok:
+            data = response.json()
+            address = data.get("address", {})
+            province = address.get("state", "")
+            municipality = address.get("city", "") or address.get("town", "") or address.get("county", "")
+            barangay = address.get("suburb", "") or address.get("village", "")
+            if "Oregon" in province:
+                st.warning("📍 Note: This is the Streamlit server location (Oregon, USA), not your real GPS.")
+        else:
+            st.warning("Unable to fetch detailed address (API issue).")
+    except Exception as e:
+        st.error(f"Reverse geocoding failed: {e}")
+
 
     # --- Manual / Auto-fill fields ---
     province = st.text_input("Province", value=province, placeholder="e.g., Sorsogon")
