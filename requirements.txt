@@ -5,5 +5,5 @@ pillow
 numpy
 requests
 streamlit-javascript
-
+geocoder
 # fixed dependency tracking
