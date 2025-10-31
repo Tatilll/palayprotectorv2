@@ -469,7 +469,8 @@ elif st.session_state.page == "signup":
 
     from streamlit_javascript import st_javascript
     import requests, geocoder
-
+    import hashlib
+     
     # Initialize empty values
     province = ""
     municipality = ""
