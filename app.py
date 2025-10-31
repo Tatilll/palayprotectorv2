@@ -465,10 +465,10 @@ elif st.session_state.page == "signup":
     confirm_password = st.text_input("Confirm Password", type="password", key="signup_confirm_password", placeholder="Re-enter your password")
 
     # --- Farm Location Detection ---
-    st.markdown("#### 📍 Farm Location (using Real GPS)")
+    st.markdown("#### 📍 Farm Location (using GPS + IP fallback)")
 
     from streamlit_javascript import st_javascript
-    import requests
+    import requests, geocoder
 
     # Initialize empty values
     province = ""
@@ -480,23 +480,32 @@ elif st.session_state.page == "signup":
     # Detect button
     if st.button("📍 Detect My Location"):
         try:
-            # Request real GPS from browser
+            # Try real GPS first
             location = st_javascript("""
-                await new Promise((resolve, reject) => {
+                await new Promise((resolve) => {
                     navigator.geolocation.getCurrentPosition(
                         pos => resolve({lat: pos.coords.latitude, lon: pos.coords.longitude}),
-                        err => reject(err),
+                        err => resolve(null),
                         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                     );
-                })
+                });
             """)
 
             if location:
                 latitude = str(location["lat"])
                 longitude = str(location["lon"])
-                st.success(f"✅ Detected GPS coordinates: {latitude}, {longitude}")
+                st.success(f"✅ Detected precise GPS: {latitude}, {longitude}")
+            else:
+                # Fallback: use IP-based location
+                g = geocoder.ip('me')
+                if g.ok and g.latlng:
+                    latitude, longitude = map(str, g.latlng)
+                    st.info(f"🌐 Using approximate IP-based location: {latitude}, {longitude}")
+                else:
+                    st.warning("❌ Unable to detect location automatically. Please enter manually.")
 
-                # Reverse-geocode coordinates to readable address
+            # Reverse-geocode if coordinates available
+            if latitude and longitude:
                 url = f"https://nominatim.openstreetmap.org/reverse?lat={latitude}&lon={longitude}&format=json"
                 response = requests.get(url, headers={"User-Agent": "PalayProtectorApp/1.0"})
                 if response.ok:
@@ -507,19 +516,73 @@ elif st.session_state.page == "signup":
                     barangay = address.get("suburb", "") or address.get("village", "")
                     st.info(f"📍 Detected location: {barangay}, {municipality}, {province}")
                 else:
-                    st.warning("Unable to fetch exact address details (API error).")
-            else:
-                st.warning("⚠️ GPS not available or permission denied.")
-
+                    st.warning("Unable to fetch address details.")
         except Exception as e:
             st.error(f"Error detecting location: {e}")
 
-    # Display editable fields (auto-filled if detection worked)
+    # --- Manual / Auto-fill fields ---
     province = st.text_input("Province", value=province, placeholder="e.g., Sorsogon")
     municipality = st.text_input("Municipality / City", value=municipality, placeholder="e.g., Bulan")
     barangay = st.text_input("Barangay", value=barangay, placeholder="e.g., Poblacion")
     latitude = st.text_input("Latitude", value=latitude, placeholder="Auto-detected or enter manually")
     longitude = st.text_input("Longitude", value=longitude, placeholder="Auto-detected or enter manually")
+
+    # --- Admin Setup ---
+    show_admin_key = st.checkbox("🔽 Show advanced admin setup", key="signup_admin_toggle", help="For system administrators only")
+    ADMIN_SECRET_KEY = "palay_secret_2025"
+
+    admin_key = ""
+    if show_admin_key:
+        admin_key = st.text_input("🔐 Admin Access Key", type="password", key="admin_key_input", placeholder="Enter secret admin key")
+
+    # --- Create Account ---
+    if st.button("Create Account", key="create_account", use_container_width=True):
+        if not all([username, email, phone, password, confirm_password]):
+            st.error("Please fill in all fields.")
+        elif password != confirm_password:
+            st.error("Passwords do not match.")
+        else:
+            try:
+                conn = sqlite3.connect("users.db")
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM users WHERE username = ? OR email = ?", (username, email))
+                if cursor.fetchone():
+                    st.warning("Username or Email already exists.")
+                else:
+                    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+                    user_type = "admin" if show_admin_key and admin_key == ADMIN_SECRET_KEY else "farmer"
+
+                    cursor.execute('''
+                        INSERT INTO users (
+                            username, email, phone, password,
+                            province, municipality, barangay,
+                            latitude, longitude, user_type
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        username, email, phone, hashed_pw,
+                        province, municipality, barangay,
+                        latitude, longitude, user_type
+                    ))
+                    conn.commit()
+
+                    if user_type == "admin":
+                        st.success("🎉 Admin account created successfully!")
+                    else:
+                        st.success("✅ Farmer account created successfully! Please log in.")
+                    st.balloons()
+                    st.session_state.page = "login"
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Error: {e}")
+            finally:
+                conn.close()
+
+    # --- Back to Login ---
+    if st.button("Back to Login", key="back_to_login", use_container_width=True):
+        st.session_state.page = "login"
+        st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # ========== ADMIN DASHBOARD ==========
 elif st.session_state.page == "admin_dashboard":
