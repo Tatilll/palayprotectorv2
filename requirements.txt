@@ -6,4 +6,6 @@ numpy
 requests
 streamlit-javascript
 geocoder
+supabase
+
 # fixed dependency tracking
