@@ -1,0 +1,2459 @@
+
+# ========== IMPORTS ==========
+import base64
+import streamlit as st
+from PIL import Image
+import random
+import string
+import time      
+import io         
+import smtplib
+from email.message import EmailMessage
+from inference_sdk import InferenceHTTPClient
+import pandas as pd
+import streamlit.components.v1 as components
+import streamlit as st
+import streamlit.components.v1 as components
+from datetime import datetime, timedelta
+import hashlib
+import sqlite3
+import streamlit as st
+import streamlit as st
+import time
+import streamlit as st
+import sqlite3
+import hashlib
+import os
+import re
+import pandas as pd
+import time
+import matplotlib.pyplot as plt
+import sqlite3, hashlib, os, re
+from config import SUPABASE_URL, SUPABASE_KEY
+from supabase import create_client, Client
+
+
+
+# ========================================
+# ✅ SUPABASE CONNECTION (UPDATED)
+# ========================================
+from config import supabase
+
+
+
+
+
+
+
+# ========================================
+# ========== BOTTOM NAVIGATION BAR ==========
+
+
+def show_bottom_nav(active_page):
+    """Display bottom navigation bar"""
+    st.markdown('<div class="bottom-nav-container">', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown(f"""
+            <div class="nav-box {'active' if active_page == 'home' else ''}">
+            </div>
+        """, unsafe_allow_html=True)
+        if st.button("Home", key="btn_nav_home"):
+            st.session_state.page = "home"
+            st.rerun()
+    
+    with col2:
+        st.markdown(f"""
+            <div class="nav-box {'active' if active_page == 'library' else ''}">
+            </div>
+        """, unsafe_allow_html=True)
+        if st.button("Library", key="btn_nav_library"):
+            st.session_state.page = "library"
+            st.rerun()
+    
+    with col3:
+        st.markdown(f"""
+            <div class="nav-box {'active' if active_page == 'profile' else ''}">
+            </div>
+        """, unsafe_allow_html=True)
+        if st.button("Profile", key="btn_nav_profile"):
+            st.session_state.page = "profile"
+            st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+
+
+
+# ========== PAGE CONFIG & GLOBAL STYLE ==========
+st.set_page_config(page_title="Palay Protector", layout="centered")
+
+st.markdown("""
+<style>
+[data-testid="stAppViewContainer"] {
+    padding: 0.5rem !important;
+    overflow-x: hidden !important;
+}
+
+/* Buttons, Inputs, and Layout */
+.stButton button, .stFileUploader, .stTextInput input {
+    width: 100% !important;
+}
+.stImage img { display: block; margin: auto; }
+.stMarkdown, .stButton { text-align: center !important; }
+
+/* Green button styling */
+.stButton>button {
+    background-color: #2e7d32 !important;
+    color: white !important;
+    font-weight: 600 !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 10px 0 !important;
+    transition: all 0.3s ease !important;
+}
+.stButton>button:hover {
+    background-color: #256528 !important;
+    transform: translateY(-2px);
+}
+
+/* Responsive layout */
+@media (max-width: 768px) {
+    .block-container { padding: 0.5rem !important; }
+    .stButton button { display: block !important; margin: 0.3rem auto !important; }
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+# ========== HELPER FUNCTIONS ==========
+def generate_otp(length=6):
+    return ''.join(random.choices(string.digits, k=length))
+
+def send_otp_email(receiver_email, otp):
+    try:
+        msg = EmailMessage()
+        msg['Subject'] = "Palay Protector - Your OTP Code"
+        msg['From'] = "palayprotector@gmail.com"
+        msg['To'] = receiver_email
+        msg.set_content(f"Your OTP code is: {otp}\nValid for 5 minutes only.")
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login("palayprotector@gmail.com", "dfhzpiitlsgkptmg")
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print("Failed to send OTP:", e)
+        return False
+
+def init_client():
+    return InferenceHTTPClient(api_url="https://serverless.roboflow.com", api_key="KajReyLpzYwgJ8fJ8sVd")
+
+
+
+# ========================================
+# ✅ DATABASE SETUP (Supabase)
+# ========================================
+
+import streamlit as st
+from supabase import create_client, Client
+from datetime import datetime
+from config import supabase
+
+
+
+
+
+
+
+
+# ========================================
+# ========== SESSION STATE ==========
+# ========================================
+if "user_id" not in st.session_state:
+    st.session_state.user_id = None
+if "logged_user" not in st.session_state:
+    st.session_state.logged_user = None
+if "user_type" not in st.session_state:
+    st.session_state.user_type = None
+if "page" not in st.session_state:
+    st.session_state.page = "login"
+
+# ========================================
+# ========== HEADER FUNCTION ==========
+# ========================================
+def show_header():
+    st.markdown("""
+        <style>
+        .header-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-top: 10px;
+            text-align: center;
+        }
+        @media (max-width: 600px) {
+            .header-container { margin-top: 0px; }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+        <div class="header-container">
+            <img src="https://cdn-icons-png.flaticon.com/128/2095/2095652.png"
+                 width="100" style="margin-bottom: 10px;">
+            <h3 style="color:#2e7d32; font-weight:700;">PALAY PROTECTOR</h3>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+
+# ========================================
+# ✅ LOGIN & SIGNUP (Supabase)
+# ========================================
+
+from config import supabase
+
+
+# --- Gmail Validator ---
+def is_valid_gmail(email: str) -> bool:
+    pattern = r"^[a-zA-Z0-9._%+-]+@gmail\.com$"
+    return re.match(pattern, email.strip()) is not None
+
+
+
+# ============================================================
+# ========== LOGIN PAGE (Supabase + Hashed Passwords) =========
+# ============================================================
+if st.session_state.page == "login":
+    show_header()
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+
+    username = st.text_input("Username", key="login_username", placeholder="Enter your username")
+    password = st.text_input("Password", type="password", key="login_password", placeholder="Enter your password")
+
+    col1, col2 = st.columns([1.3, 1])
+    with col2:
+        if st.button("Forgot Password?", key="goto_forgot_btn", type="primary"):
+            st.session_state.page = "otp_verification"
+            st.rerun()
+
+    if st.button("LOG IN", key="login_button", use_container_width=True):
+        if not username or not password:
+            st.warning("⚠️ Please enter both username and password.")
+        else:
+            hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+
+            try:
+                res = (
+                    supabase.table("users")
+                    .select("id, username, user_type")
+                    .eq("username", username)
+                    .eq("password", hashed_pw)
+                    .execute()
+                )
+
+                if res.data:
+                    user = res.data[0]
+                    st.session_state.user_id = user["id"]
+                    st.session_state.logged_user = user["username"]
+                    st.session_state.user_type = user["user_type"]
+                    st.session_state.login_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                    if user["user_type"] == "admin":
+                        st.success(f"👑 Welcome Admin {user['username']}!")
+                        st.session_state.page = "admin_dashboard"
+                    elif user["user_type"] == "agriculturist":
+                        st.success(f"🌾 Welcome Agriculturist {user['username']}!")
+                        st.session_state.page = "home"
+                    else:
+                        st.success(f"👋 Welcome {user['username']}!")
+                        st.session_state.page = "home"
+
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid username or password.")
+
+            except Exception as e:
+                st.error(f"⚠️ Database query error: {e}")
+
+    if st.button("SIGN UP", key="signup_redirect", use_container_width=True):
+        st.session_state.page = "signup"
+        st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+
+
+
+
+
+
+
+
+# ============================================================
+# ========== SIGNUP PAGE (Supabase + Gmail Validation) =========
+# ============================================================
+
+elif st.session_state.page == "signup":
+    show_header()
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    st.markdown("### Create New Account")
+
+    # BASIC INFO
+    username = st.text_input("Username *", key="signup_username", placeholder="Choose a username")
+    email = st.text_input("Email *", key="signup_email", placeholder="your.email@gmail.com")
+    phone = st.text_input("Phone Number *", key="signup_phone", placeholder="+63 XXX XXX XXXX")
+    password = st.text_input("Password *", type="password", key="signup_password", placeholder="Create a strong password")
+    confirm_password = st.text_input("Confirm Password *", type="password", key="signup_confirm_password", placeholder="Re-enter your password")
+
+    # LOCATION INFO
+    PROVINCES = [
+        "Abra", "Agusan del Norte", "Agusan del Sur", "Aklan", "Albay", "Antique", "Apayao", "Aurora",
+        "Basilan", "Bataan", "Batanes", "Batangas", "Benguet", "Biliran", "Bohol", "Bukidnon", "Bulacan",
+        "Cagayan", "Camarines Norte", "Camarines Sur", "Cebu", "Davao del Sur", "Iloilo", "Laguna",
+        "Pampanga", "Quezon", "Sorsogon", "Zambales", "Metro Manila"
+    ]
+
+    SORSOGON_MUNICIPALITIES = [
+        "Barcelona", "Bulan", "Bulusan", "Casiguran", "Castilla", "Donsol", "Gubat",
+        "Irosin", "Juban", "Magallanes", "Matnog", "Pilar", "Prieto Diaz", "Santa Magdalena", "Sorsogon City"
+    ]
+
+    BULAN_BARANGAYS = [
+        "A. Bonifacio (Tinurilan)", "Abad Santos (Kambal)", "Aguinaldo (Lipata Dako)",
+        "Antipolo", "Aquino (Imelda)", "Bical", "Beguin", "Bonga", "Butag",
+        "Cadandanan", "Calomagon", "Calpi", "Cocok-Cabitan", "Daganas", "Danao",
+        "Dolos", "E. Quirino (Pinangomhan)", "Fabrica", "G. Del Pilar (Tanga)", "Gate",
+        "Inararan", "J. Gerona (Biton)", "J.P. Laurel (Pon-od)", "Jamorawon", "Libertad (Calle Putol)",
+        "Lajong", "Magsaysay (Bongog)", "Managa-naga", "Marinab", "Nasuje", "Montecalvario",
+        "N. Roque (Calayugan)", "Namo", "Obrero", "Osmeña (Lipata Saday)", "Otavi",
+        "Padre Diaz", "Palale", "Quezon (Cabarawan)", "R. Gerona (Butag)", "Recto", "Roxas (Busay)",
+        "Sagrada", "San Francisco (Polot)", "San Isidro (Cabugaan)", "San Juan Bag-o", "San Juan Daan",
+        "San Rafael (Togbongon)", "San Ramon", "San Vicente", "Santa Remedios", "Santa Teresita (Trece)",
+        "Sigad", "Somagongsong", "Tarhan", "Taromata", "Zone 1 (Ilawod)", "Zone 2 (Sabang)",
+        "Zone 3 (Central)", "Zone 4 (CBD)", "Zone 5 (Canipaan)", "Zone 6 (Baybay)", "Zone 7 (Iraya)",
+        "Zone 8 (Loyo)"
+    ]
+
+    province = st.selectbox("Province *", ["-- Select Province --"] + PROVINCES)
+    if province == "Sorsogon":
+        municipality = st.selectbox("Municipality / City *", ["-- Select Municipality --"] + SORSOGON_MUNICIPALITIES)
+    else:
+        municipality = st.selectbox("Municipality / City *", ["-- Select Province First --"], disabled=True)
+
+    if province == "Sorsogon" and municipality == "Bulan":
+        barangay = st.selectbox("Barangay *", ["-- Select Barangay --"] + BULAN_BARANGAYS)
+    elif province == "Sorsogon":
+        barangay = st.text_input("Barangay *", placeholder="Enter your barangay (list unavailable)")
+    else:
+        barangay = st.text_input("Barangay *", placeholder="Enter your barangay")
+
+    street = st.text_input("Street / Purok (Optional)", placeholder="e.g., Purok 1, Main Street, etc.")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ROLE SETTINGS
+    st.markdown("---")
+    show_admin_key = st.checkbox("🔽 Show advanced setup (Admin / Agriculturist)")
+    ADMIN_SECRET_KEY = "palay_secret_2025"
+    AGRI_SECRET_KEY = "agri_secret_2025"
+
+    role_option = "Farmer"
+    admin_key = ""
+    agri_key = ""
+
+    if show_admin_key:
+        role_option = st.radio("Select Role to Register As:", ["Admin", "Agriculturist"], horizontal=True)
+        if role_option == "Admin":
+            admin_key = st.text_input("🔐 Admin Access Key", type="password")
+        elif role_option == "Agriculturist":
+            agri_key = st.text_input("🌾 Agriculturist Access Key", type="password")
+
+    st.markdown("---")
+
+    # ========== ACCOUNT CREATION LOGIC ==========
+    if st.button("✅ Create Account", use_container_width=True, type="primary"):
+        if not username.strip():
+            st.error("❌ Please enter your Username.")
+        elif not email.strip() or not is_valid_gmail(email):
+            st.error("❌ Please enter a valid Gmail address (must end with @gmail.com).")
+        elif not phone.strip():
+            st.error("❌ Please enter your Phone Number.")
+        elif not password or not confirm_password:
+            st.error("❌ Please enter and confirm your Password.")
+        elif password != confirm_password:
+            st.error("❌ Passwords do not match.")
+        elif len(password) < 6:
+            st.error("❌ Password must be at least 6 characters long.")
+        elif province == "-- Select Province --":
+            st.error("❌ Please select a Province.")
+        elif not municipality.strip():
+            st.error("❌ Please enter your Municipality or City.")
+        else:
+            try:
+                # --- Check duplicates safely (no .or_()) ---
+                check_username = supabase.table("users").select("*").eq("username", username).execute()
+                check_email = supabase.table("users").select("*").eq("email", email).execute()
+
+                if check_username.data:
+                    st.warning("⚠️ Username already exists. Please choose another.")
+                elif check_email.data:
+                    st.warning("⚠️ Email already registered. Try logging in instead.")
+                else:
+                    # --- Determine role ---
+                    if role_option == "Admin":
+                        if admin_key.strip() == ADMIN_SECRET_KEY:
+                            user_type = "admin"
+                        else:
+                            st.error("❌ Invalid Admin Access Key.")
+                            st.stop()
+                    elif role_option == "Agriculturist":
+                        if agri_key.strip() == AGRI_SECRET_KEY:
+                            user_type = "agriculturist"
+                        else:
+                            st.error("❌ Invalid Agriculturist Access Key.")
+                            st.stop()
+                    else:
+                        user_type = "farmer"
+
+                    # --- Insert new account ---
+                    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+                    full_address = f"{street}, {barangay}" if street else barangay
+
+                    data = {
+                        "username": username,
+                        "email": email.lower().strip(),
+                        "phone": phone,
+                        "password": hashed_pw,
+                        "province": province,
+                        "municipality": municipality,
+                        "barangay": full_address,
+                        "user_type": user_type,
+                    }
+
+                    supabase.table("users").insert(data).execute()
+                    st.success(f"🎉 {user_type.capitalize()} account created successfully!")
+                    st.balloons()
+
+                    # --- Redirect to LOGIN page instead of auto-login ---
+                    time.sleep(2)
+                    st.session_state.page = "login"
+                    st.success("✅ Please log in to continue.")
+                    st.rerun()
+
+            except Exception as e:
+                st.error(f"❌ Database error: {e}")
+
+    # Back to login button
+    if st.button("← Back to Login", use_container_width=True):
+        st.session_state.page = "login"
+        st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+
+
+
+
+
+# ========================================
+# ✅ FORGOT PASSWORD + OTP (Supabase)
+# ========================================
+elif st.session_state.page == "otp_verification":
+    import smtplib
+    from email.mime.text import MIMEText
+    import time
+    import hashlib
+    import random
+    from supabase import create_client, Client
+    from config import supabase
+
+
+    # ==========================
+    # ✉️ EMAIL SENDER FUNCTION
+    # ==========================
+    SENDER_EMAIL = "palayprotector@gmail.com"
+    APP_PASSWORD = "xvel yyqd sgqd tbek"  # your Gmail App Password
+
+    def send_otp_email(receiver_email, otp):
+        message = MIMEText(f"Your Palay Protector OTP is: {otp}")
+        message["Subject"] = "Palay Protector - OTP Verification"
+        message["From"] = SENDER_EMAIL
+        message["To"] = receiver_email
+
+        try:
+            with smtplib.SMTP("smtp.gmail.com", 587) as server:
+                server.starttls()
+                server.login(SENDER_EMAIL, APP_PASSWORD)
+                server.send_message(message)
+            return True
+        except Exception as e:
+            st.error(f"Failed to send OTP: {e}")
+            return False
+
+    # ==========================
+    # 🧮 OTP GENERATOR
+    # ==========================
+    def generate_otp():
+        return str(random.randint(100000, 999999))
+
+    # ==========================
+    # 🌿 STYLE
+    # ==========================
+    st.markdown("""
+    <style>
+        .otp-title { text-align: center; color: #2e7d32; font-size: 24px; font-weight: bold; margin-bottom: 10px; }
+        .otp-subtitle { text-align: center; color: #6c757d; font-size: 14px; margin-bottom: 30px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ==========================
+    # 🌾 OTP STAGES
+    # ==========================
+    if "otp_stage" not in st.session_state:
+        st.session_state.otp_stage = "input_email"
+
+    # ==========================
+    # 📧 INPUT EMAIL STAGE
+    # ==========================
+    if st.session_state.otp_stage == "input_email":
+        st.markdown('<div class="otp-title">Forgot Password</div>', unsafe_allow_html=True)
+        st.markdown('<div class="otp-subtitle">Enter your Gmail address to receive a verification code</div>', unsafe_allow_html=True)
+
+        input_email = st.text_input("Email Address", key="otp_email_input", placeholder="your.email@gmail.com")
+
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button("Send OTP", use_container_width=True, type="primary"):
+                if not input_email.strip():
+                    st.warning("Please enter your email address.")
+                else:
+                    try:
+                        # ✅ Check if user exists in Supabase
+                        res = supabase.table("users").select("username").eq("email", input_email).execute()
+                        if not res.data:
+                            st.error("❌ Email not found in our records.")
+                        else:
+                            otp = generate_otp()
+                            sent = send_otp_email(input_email, otp)
+                            if sent:
+                                st.session_state.generated_otp = otp
+                                st.session_state.otp_start_time = time.time()
+                                st.session_state.otp_email = input_email
+                                st.session_state.verified_user = res.data[0]["username"]
+                                st.session_state.otp_stage = "verify_otp"
+                                st.success("✅ OTP sent! Check your Gmail inbox.")
+                                st.rerun()
+                    except Exception as e:
+                        st.error(f"Supabase error: {e}")
+
+        with col2:
+            if st.button("Back to Login", use_container_width=True):
+                st.session_state.page = "login"
+                st.rerun()
+
+    # ==========================
+    # 🔢 VERIFY OTP STAGE
+    # ==========================
+    elif st.session_state.otp_stage == "verify_otp":
+        st.markdown('<div class="otp-title">Verify OTP</div>', unsafe_allow_html=True)
+        st.markdown('<div class="otp-subtitle">A 6-digit code has been sent to your email</div>', unsafe_allow_html=True)
+
+        entered_otp = st.text_input("Enter 6-digit OTP", max_chars=6, placeholder="000000", key="otp_input")
+        time_left = 180 - (time.time() - st.session_state.otp_start_time)
+
+        col1, col2, col3 = st.columns(3)
+        with col2:
+            st.markdown(f"⏳ **{int(time_left)} seconds remaining**")
+
+        if st.button("Submit OTP", use_container_width=True, type="primary"):
+            if not entered_otp:
+                st.error("Please enter the OTP.")
+            elif entered_otp == st.session_state.generated_otp and time_left > 0:
+                st.success("✅ OTP verified successfully!")
+                st.session_state.page = "change_password"
+                time.sleep(0.5)
+                st.rerun()
+            elif time_left <= 0:
+                st.error("⏰ OTP expired. Please request a new one.")
+            else:
+                st.error("❌ Invalid OTP.")
+
+        colA, colB = st.columns(2)
+        with colA:
+            if st.button("Resend OTP", use_container_width=True):
+                otp = generate_otp()
+                st.session_state.generated_otp = otp
+                st.session_state.otp_start_time = time.time()
+                send_otp_email(st.session_state.otp_email, otp)
+                st.success("New OTP sent!")
+
+        with colB:
+            if st.button("Change Email", use_container_width=True):
+                st.session_state.otp_stage = "input_email"
+                st.rerun()
+
+
+# ==========================
+# ✅ CHANGE PASSWORD PAGE (SUPABASE)
+# ==========================
+elif st.session_state.page == "change_password":
+    show_header()
+
+    st.markdown("""
+    <div style="text-align: center; margin-bottom: 20px;">
+        <img src="https://cdn-icons-png.flaticon.com/128/2889/2889676.png" width="80">
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="otp-title">Create New Password</div>', unsafe_allow_html=True)
+    st.markdown('<div class="otp-subtitle">Enter a strong password for your account</div>', unsafe_allow_html=True)
+    st.info("Password must be at least 6 characters long")
+
+    new_password = st.text_input("New Password", type="password", placeholder="Enter new password")
+    confirm_password = st.text_input("Confirm New Password", type="password", placeholder="Re-enter new password")
+
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+        if st.button("Change Password", use_container_width=True, type="primary"):
+            if not new_password or not confirm_password:
+                st.error("Please fill in both fields.")
+            elif new_password != confirm_password:
+                st.error("Passwords do not match.")
+            elif len(new_password) < 6:
+                st.error("Password must be at least 6 characters long.")
+            else:
+                try:
+                    hashed_pw = hashlib.sha256(new_password.encode()).hexdigest()
+                    supabase.table("users").update({"password": hashed_pw}).eq("email", st.session_state.otp_email).execute()
+
+                    st.success("✅ Password changed successfully!")
+
+                    # Clear OTP session data
+                    for key in ['generated_otp', 'otp_start_time', 'otp_email', 'verified_user', 'otp_stage']:
+                        st.session_state.pop(key, None)
+
+                    time.sleep(1)
+                    st.session_state.page = "login"
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Supabase error: {e}")
+
+    with col2:
+        if st.button("Cancel", use_container_width=True):
+            for key in ['generated_otp', 'otp_start_time', 'otp_email', 'verified_user', 'otp_stage']:
+                st.session_state.pop(key, None)
+            st.session_state.page = "login"
+            st.rerun()
+
+
+
+
+
+
+
+# ========= PAGE ROUTING =========
+if "page" not in st.session_state:
+    st.session_state.page = "home"
+
+
+
+
+# ========================================
+# ✅ ADMIN DASHBOARD (Supabase)
+# ========================================
+elif st.session_state.page == "admin_dashboard":
+    import os
+    import pandas as pd
+    import plotly.express as px
+    from datetime import datetime
+    import streamlit as st
+    from supabase import create_client, Client
+    from config import supabase
+
+
+    # --- Verify Admin Access ---
+    if st.session_state.user_type != "admin":
+        st.error("Access Denied! Admin privileges required.")
+        st.session_state.page = "home"
+        st.rerun()
+
+    # ==========================
+    # 📊 SUMMARY CARDS
+    # ==========================
+    try:
+        total_farmers = len(supabase.table("users").select("*").eq("user_type", "farmer").execute().data)
+        total_admins = len(supabase.table("users").select("*").eq("user_type", "admin").execute().data)
+        total_detections = len(supabase.table("history").select("*").execute().data)
+    except Exception as e:
+        st.error(f"❌ Failed to load summary data: {e}")
+        st.stop()
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"""
+            <div class="metric-card">
+                <img src="https://cdn-icons-png.flaticon.com/128/1886/1886915.png" class="icon-medium">
+                <div class="metric-value">{total_farmers}</div>
+                <div class="metric-label">Total Farmers</div>
+            </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"""
+            <div class="metric-card">
+                <img src="https://cdn-icons-png.flaticon.com/128/3135/3135715.png" class="icon-medium">
+                <div class="metric-value">{total_admins}</div>
+                <div class="metric-label">Total Admins</div>
+            </div>
+        """, unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"""
+            <div class="metric-card">
+                <img src="https://cdn-icons-png.flaticon.com/128/18742/18742558.png" class="icon-medium">
+                <div class="metric-value">{total_detections}</div>
+                <div class="metric-label">Total Detections</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # ==========================
+    # 📁 TABS
+    # ==========================
+    tab1, tab2, tab3, tab4 = st.tabs(["Users", "Detection History", "Settings", "Visualizations"])
+
+    # ==========================
+    # TAB 1: USERS
+    # ==========================
+    with tab1:
+        st.subheader("Registered Users")
+        try:
+            users_data = supabase.table("users").select(
+                "id, username, email, phone, user_type, province, municipality, barangay, created_at"
+            ).order("created_at", desc=True).execute().data
+            users_df = pd.DataFrame(users_data)
+        except Exception as e:
+            st.error(f"❌ Failed to fetch users: {e}")
+            users_df = pd.DataFrame()
+
+        if users_df.empty:
+            st.info("No registered users found.")
+        else:
+            users_df["Address"] = users_df["province"].fillna('') + ", " + users_df["municipality"].fillna('') + ", " + users_df["barangay"].fillna('')
+            users_df = users_df.drop(columns=["province", "municipality", "barangay"])
+            st.dataframe(users_df, use_container_width=True)
+
+    # ==========================
+    # TAB 2: DETECTION HISTORY
+    # ==========================
+    with tab2:
+        st.subheader("Recent Detection History")
+        try:
+            history_data = supabase.table("history").select("id, user_id, result, date_detected").order("date_detected", desc=True).limit(50).execute().data
+            user_data = supabase.table("users").select("id, username").execute().data
+            users_map = {u["id"]: u["username"] for u in user_data}
+            for h in history_data:
+                h["Username"] = users_map.get(h["user_id"], "Unknown")
+            history_df = pd.DataFrame(history_data)
+        except Exception as e:
+            st.error(f"❌ Failed to fetch history: {e}")
+            history_df = pd.DataFrame()
+
+        if history_df.empty:
+            st.info("No detection records found.")
+        else:
+            st.dataframe(history_df, use_container_width=True)
+            del_history_id = st.number_input("Enter Detection ID to Delete", min_value=1, step=1)
+            if st.button("Delete Detection Record"):
+                try:
+                    supabase.table("history").delete().eq("id", del_history_id).execute()
+                    st.success(f"Detection record #{del_history_id} deleted successfully.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error deleting record: {e}")
+
+    # ==========================
+    # TAB 3: SETTINGS (Delete Users)
+    # ==========================
+    with tab3:
+        st.subheader("User Management")
+        try:
+            all_users_data = supabase.table("users").select("id, username, email, user_type, created_at").order("created_at", desc=True).execute().data
+            all_users_df = pd.DataFrame(all_users_data)
+        except Exception as e:
+            st.error(f"❌ Failed to fetch user list: {e}")
+            all_users_df = pd.DataFrame()
+
+        if not all_users_df.empty:
+            st.dataframe(all_users_df, use_container_width=True)
+            del_id = st.number_input("Enter User ID to Delete", min_value=1, step=1)
+            if st.button("Delete User"):
+                try:
+                    supabase.table("history").delete().eq("user_id", del_id).execute()
+                    supabase.table("users").delete().eq("id", del_id).execute()
+                    st.success(f"User #{del_id} and related detections deleted successfully.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Failed to delete user: {e}")
+        else:
+            st.info("No users available for deletion.")
+
+    # ==========================
+    # TAB 4: VISUALIZATIONS
+    # ==========================
+    with tab4:
+        st.markdown("""
+            <style>
+            .viz-header { text-align: center; margin-bottom: 10px; }
+            .viz-header h2 { color: #1B5E20; font-weight: 800; font-size: 26px; }
+            .viz-header p { color: #444; font-size: 14px; margin-top: -8px; }
+            .chart-card {
+                background-color: #ffffff;
+                border-radius: 16px;
+                padding: 25px;
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+                margin-bottom: 25px;
+            }
+            .chart-title {
+                text-align: left;
+                font-weight: 700;
+                color: #2E7D32;
+                font-size: 18px;
+                margin-bottom: 10px;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+            <div class='viz-header'>
+                <h2>Detection Insights Dashboard</h2>
+                <p>Visual summary of disease detections and trends</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        try:
+            viz_data = supabase.table("history").select("result, date_detected").execute().data
+            viz_df = pd.DataFrame(viz_data)
+        except Exception as e:
+            st.error(f"❌ Failed to load visualization data: {e}")
+            viz_df = pd.DataFrame()
+
+        if viz_df.empty:
+            st.info("No detection data available for visualization.")
+        else:
+            viz_df["date_detected"] = pd.to_datetime(viz_df["date_detected"], errors="coerce")
+
+            # PIE CHART
+            st.markdown("<div class='chart-card'>", unsafe_allow_html=True)
+            st.markdown("<div class='chart-title'>Most Detected Diseases</div>", unsafe_allow_html=True)
+            disease_counts = viz_df["result"].value_counts().reset_index()
+            disease_counts.columns = ["Disease", "Count"]
+            pie_fig = px.pie(
+                disease_counts,
+                values="Count",
+                names="Disease",
+                color_discrete_sequence=px.colors.sequential.Greens_r,
+                hole=0.4
+            )
+            pie_fig.update_traces(textinfo="percent+label", pull=[0.05]*len(disease_counts))
+            st.plotly_chart(pie_fig, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            # LINE CHART
+            st.markdown("<div class='chart-card'>", unsafe_allow_html=True)
+            st.markdown("<div class='chart-title'>Detection Trend Over Time</div>", unsafe_allow_html=True)
+            trend_df = viz_df.groupby(viz_df["date_detected"].dt.date)["result"].count().reset_index()
+            trend_df.columns = ["Date", "Total Detections"]
+            line_fig = px.line(trend_df, x="Date", y="Total Detections", markers=True, color_discrete_sequence=["#2E7D32"])
+            st.plotly_chart(line_fig, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            # BAR CHART
+            st.markdown("<div class='chart-card'>", unsafe_allow_html=True)
+            st.markdown("<div class='chart-title'>Weekly Detection Summary</div>", unsafe_allow_html=True)
+            viz_df["Week"] = viz_df["date_detected"].dt.strftime("%Y-%U")
+            week_df = viz_df.groupby("Week")["result"].count().reset_index()
+            week_df.columns = ["Week", "Total Detections"]
+            bar_fig = px.bar(
+                week_df,
+                x="Week",
+                y="Total Detections",
+                text="Total Detections",
+                color="Total Detections",
+                color_continuous_scale="Greens"
+            )
+            bar_fig.update_traces(textposition="outside")
+            st.plotly_chart(bar_fig, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    # ==========================
+    # 🚪 LOGOUT BUTTON
+    # ==========================
+    if st.button("Logout", key="admin_logout"):
+        st.session_state.clear()
+        st.session_state.page = "login"
+        st.rerun()
+
+
+
+
+
+# ========== HOME SCREEN  ==========
+elif st.session_state.page == "home":
+
+    import streamlit as st
+    import streamlit.components.v1 as components
+    from datetime import datetime, timedelta
+
+    # ======  PAGE STYLING ======
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        /* Global Reset & Base */
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        .main .block-container {
+            max-width: 1100px;
+            padding: 2rem 1.5rem;
+        }
+        
+        /* Hero Header Section */
+        .hero-section {
+            text-align: center;
+            padding: 2rem 0 2.5rem;
+            position: relative;
+        }
+        
+        .avatar-container {
+            margin-bottom: 1.5rem;
+            position: relative;
+            display: inline-block;
+        }
+        
+        .avatar-circle {
+            width: 90px;
+            height: 90px;
+            background: linear-gradient(135deg, #A8E6A1 0%, #7BC96F 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+            box-shadow: 0 8px 24px rgba(46, 125, 50, 0.2);
+            position: relative;
+            animation: pulse-subtle 3s ease-in-out infinite;
+        }
+        
+        @keyframes pulse-subtle {
+            0%, 100% { box-shadow: 0 8px 24px rgba(46, 125, 50, 0.2); }
+            50% { box-shadow: 0 8px 32px rgba(46, 125, 50, 0.3); }
+        }
+        
+        .avatar-icon {
+            font-size: 48px;
+        }
+        
+        .welcome-header {
+            font-size: 32px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.5px;
+        }
+        
+        .welcome-username {
+            background: linear-gradient(135deg, #4CAF50 0%, #2e7d32 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .welcome-subtitle {
+            font-size: 16px;
+            color: #6c757d;
+            font-weight: 400;
+            margin-top: 0.5rem;
+        }
+        
+        /* Feature Cards Section */
+        .features-section {
+            margin: 2.5rem 0;
+        }
+        
+        .feature-card-modern {
+            background: linear-gradient(135deg, #A8E6A1 0%, #8FD987 100%);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: 0 8px 24px rgba(46, 125, 50, 0.15);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 280px;
+        }
+        
+        .feature-card-modern::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, #4CAF50, #2e7d32);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .feature-card-modern:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 16px 40px rgba(46, 125, 50, 0.25);
+        }
+        
+        .feature-card-modern:hover::before {
+            opacity: 1;
+        }
+        
+        .feature-icon-wrapper {
+            width: 85px;
+            height: 85px;
+            background: white;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.25rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feature-icon-wrapper img {
+            width: 55px;
+            height: 55px;
+        }
+        
+        .feature-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1b5e20;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+        
+        .feature-description {
+            font-size: 14px;
+            color: #2d5016;
+            text-align: center;
+            margin-bottom: 1.25rem;
+            line-height: 1.5;
+            flex-grow: 1;
+        }
+        
+        /* Premium Button Styling */
+        div.stButton > button {
+            background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+            color: white;
+            font-weight: 600;
+            font-size: 15px;
+            border: none;
+            border-radius: 12px;
+            height: 48px;
+            width: 100% !important;
+            margin: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        
+        div.stButton > button:hover {
+            background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(46, 125, 50, 0.4);
+        }
+        
+        div.stButton > button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(46, 125, 50, 0.3);
+        }
+        
+        /* Insights Section */
+        .insights-section {
+            background: linear-gradient(135deg, #ffffff 0%, #f1f8e9 100%);
+            border-radius: 20px;
+            padding: 1.75rem;
+            margin: 2rem 0 3rem 0;
+            border-left: 5px solid #4CAF50;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        }
+        
+        .insights-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 1rem;
+        }
+        
+        .insights-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #4CAF50, #2e7d32);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        
+        .insights-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2e7d32;
+            margin: 0;
+        }
+        
+        .insights-content {
+            font-size: 15px;
+            color: #555;
+            line-height: 1.7;
+        }
+        
+        .insights-highlight {
+            background: linear-gradient(135deg, #fff9c4 0%, #fff59d 100%);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            color: #f57f17;
+        }
+        
+        /* Stats Badge */
+        .stats-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #2e7d32;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            margin-top: 0.75rem;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .welcome-header {
+                font-size: 26px;
+            }
+            
+            .feature-card-modern {
+                min-height: 220px;
+            }
+        }
+        
+        /* Smooth Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .hero-section,
+        .weather-card,
+        .features-section,
+        .insights-section {
+            animation: fadeInUp 0.6s ease-out;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ===== HERO SECTION =====
+    show_header()
+
+    # ===== WEATHER FORECAST SECTION =====
+    CITY = "Sorsogon"
+    COUNTRY = "Philippines"
+
+    def get_7day_forecast(city):
+        today = datetime.now()
+        temp_ranges = [
+            {"max": 32, "min": 25, "icon": "01d"},
+            {"max": 31, "min": 24, "icon": "02d"},
+            {"max": 33, "min": 26, "icon": "03d"},
+            {"max": 30, "min": 25, "icon": "10d"},
+            {"max": 32, "min": 26, "icon": "01d"},
+            {"max": 31, "min": 25, "icon": "02d"},
+            {"max": 29, "min": 24, "icon": "04d"}
+        ]
+        forecast_data = []
+        for i in range(7):
+            current_date = today + timedelta(days=i)
+            forecast_data.append({
+                "day_short": current_date.strftime("%a"),
+                "temp_max": temp_ranges[i]["max"],
+                "temp_min": temp_ranges[i]["min"],
+                "icon": temp_ranges[i]["icon"]
+            })
+        return forecast_data
+
+    forecast = get_7day_forecast(CITY)
+
+    if forecast:
+        weather_html = f"""
+        <style>
+        .weather-box {{
+            background: linear-gradient(135deg, #ffffff 0%, #f8fdf5 100%);
+            border-radius: 20px;
+            padding: 1.5rem 1.5rem 1.8rem 1.5rem;
+            margin: 1.5rem auto;
+            max-width: 900px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(46, 125, 50, 0.1);
+        }}
+        .weather-title {{
+            font-size: 18px;
+            font-weight: 700;
+            color: #2e7d32;
+            text-align: center;
+            margin-bottom: 1.2rem;
+        }}
+        .forecast-container {{
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 15px;
+            scrollbar-width: thin;
+            scrollbar-color: #4CAF50 #f1f8e9;
+        }}
+        .forecast-container::-webkit-scrollbar {{
+            height: 8px;
+        }}
+        .forecast-container::-webkit-scrollbar-track {{
+            background: #f1f8e9;
+            border-radius: 10px;
+        }}
+        .forecast-container::-webkit-scrollbar-thumb {{
+            background: #4CAF50;
+            border-radius: 10px;
+        }}
+        .forecast-container::-webkit-scrollbar-thumb:hover {{
+            background: #2e7d32;
+        }}
+        .forecast-card {{
+            background: linear-gradient(135deg, #f1f8e9 0%, #ffffff 100%);
+            border-radius: 16px;
+            padding: 0.85rem 0.65rem;
+            min-width: 80px;
+            flex-shrink: 0;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(46, 125, 50, 0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(46, 125, 50, 0.08);
+        }}
+        .forecast-card:hover {{
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(46, 125, 50, 0.2);
+        }}
+        .forecast-card img {{
+            width: 42px;
+            height: 42px;
+            display: block;
+            margin: 6px auto;
+        }}
+        .forecast-day {{
+            font-size: 13px;
+            font-weight: 700;
+            color: #2e7d32;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        .forecast-temp {{
+            font-size: 12px;
+            color: #555;
+            margin-top: 6px;
+            font-weight: 600;
+        }}
+        </style>
+
+        <div class="weather-box">
+            <div class="weather-title"> 7-Day Forecast ({CITY}, {COUNTRY})</div>
+            <div class="forecast-container">
+        """
+
+        for day in forecast:
+            icon_url = f"https://openweathermap.org/img/wn/{day['icon']}@2x.png"
+            weather_html += f"""
+            <div class="forecast-card">
+                <div class="forecast-day">{day['day_short']}</div>
+                <img src="{icon_url}">
+                <div class="forecast-temp">{day['temp_max']}° / {day['temp_min']}°</div>
+            </div>
+            """
+
+        weather_html += "</div></div>"
+
+        components.html(weather_html, height=200, scrolling=False)
+
+    # ===== FEATURE CARDS SECTION =====
+    st.markdown('<div class="features-section">', unsafe_allow_html=True)
+    col1, col2 = st.columns(2, gap="large")
+
+    with col1:
+        st.markdown("""
+        <div class="feature-card-modern">
+            <div class="feature-icon-wrapper">
+                <img src="https://cdn-icons-png.flaticon.com/128/1150/1150652.png" alt="Detect Disease">
+            </div>
+            <div class="feature-title">Detect Disease</div>
+            <div class="feature-description">
+                Upload images of your palay plants and get instant AI-powered disease detection
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Start Detection", key="detect_button"):
+            st.session_state.page = "detect"
+            st.rerun()
+
+    with col2:
+        st.markdown("""
+        <div class="feature-card-modern">
+            <div class="feature-icon-wrapper">
+                <img src="https://cdn-icons-png.flaticon.com/128/12901/12901923.png" alt="View History">
+            </div>
+            <div class="feature-title">View History</div>
+            <div class="feature-description">
+                Access your complete scan history and track disease patterns over time for better crop management
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("View Records", key="history_button"):
+            st.session_state.page = "history"
+            st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ===== INSIGHTS SECTION =====
+    st.markdown("""
+    <div class="insights-section">
+        <div class="insights-header">
+            <div class="insights-icon">💡</div>
+            <div class="insights-title">Expert Insight</div>
+        </div>
+        <div class="insights-content">
+            Early detection of palay diseases can increase your yield by up to 
+            <span class="insights-highlight">30%</span>. Regular monitoring and weekly image uploads 
+            ensure optimal crop health and maximum productivity.
+        </div>
+        <div class="stats-badge">
+            ✓ AI-Powered Analysis
+        </div>
+        <div class="stats-badge">
+            ✓ Real-time Results
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+    # ===== BOTTOM NAVIGATION =====
+    show_bottom_nav('home')
+
+
+
+
+# ========== DETECTION SCREEN - FINAL VERSION (Supabase Database with Severity & Description) ==========
+elif st.session_state.page == "detect":
+
+    from datetime import datetime
+    from supabase import create_client, Client
+    from config import SUPABASE_URL, SUPABASE_KEY
+    import streamlit as st
+    import base64, io, tempfile
+    from PIL import Image
+
+    # --- Supabase connection ---
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+    # ==============================
+    # DISEASE INFORMATION DATABASE
+    # ==============================
+    DISEASE_INFO = {
+        "Leaf Smut": {
+            "description": "A fungal disease causing small black spots on leaves, reducing photosynthesis and plant vigor.",
+            "severity": "Moderate", "severity_color": "#ff9800"
+        },
+        "Leaf Scald": {
+            "description": "Creates large lesions with white and brown bands, severely impacting leaf function and reducing yield.",
+            "severity": "High", "severity_color": "#f44336"
+        },
+        "Narrow Brown Leaf Spot": {
+            "description": "Narrow brown lesions on leaves that can reduce grain quality and yield significantly.",
+            "severity": "Moderate", "severity_color": "#ff9800"
+        },
+        "Rice Blast": {
+            "description": "One of the most destructive rice diseases with diamond-shaped lesions. Can reduce yield by up to 50%.",
+            "severity": "High", "severity_color": "#f44336"
+        },
+        "Rice Stripes": {
+            "description": "A viral disease causing yellow to white stripes on leaves, transmitted by planthoppers and causing stunted growth.",
+            "severity": "High", "severity_color": "#f44336"
+        },
+        "Rice Tungro": {
+            "description": "A viral complex causing yellow-orange discoloration and stunting. Can cause total crop failure if not managed early.",
+            "severity": "High", "severity_color": "#f44336"
+        },
+        "Brown Spot": {
+            "description": "Brown spot disease causes circular brown lesions on leaves, reducing photosynthetic area and grain quality.",
+            "severity": "Moderate", "severity_color": "#ff9800"
+        },
+        "Rice Hispa": {
+            "description": "Rice Hispa is an insect pest that scrapes chlorophyll from the leaf surface, leaving white streaks that reduce photosynthesis.",
+            "severity": "Moderate", "severity_color": "#ff9800"
+        },
+        "Healthy Rice": {
+            "description": "No disease detected. Your rice plant appears healthy with no visible signs of infection.",
+            "severity": "None", "severity_color": "#4CAF50"
+        },
+        "Non Plant Object": {
+            "description": "Please retake or upload again because this image is not a rice plant image.",
+            "severity": "N/A", "severity_color": "#9e9e9e", "is_non_plant": True
+        },
+        "Bacterial Leaf Blight": {
+            "description": "A bacterial disease causing water-soaked lesions that turn yellow to white. Can cause severe yield loss in tropical areas.",
+            "severity": "High", "severity_color": "#f44336"
+        },
+        "Sheath Blight": {
+            "description": "A fungal disease causing irregular lesions on leaf sheaths, leading to lodging and yield reduction.",
+            "severity": "Moderate", "severity_color": "#ff9800"
+        }
+    }
+
+    # ==============================
+    # NORMALIZATION FUNCTION
+    # ==============================
+    def normalize_disease_name(name):
+        """Normalize prediction class names to match DISEASE_INFO keys."""
+        name = name.strip().replace("00 ", "").replace("00", "").title()
+        if "Hispa" in name:
+            return "Rice Hispa"
+        if "Healthy" in name:
+            return "Healthy Rice"
+        if "Shealth" in name:
+            return "Sheath Blight"
+        if "Brownspot" in name:
+            return "Brown Spot"
+        if "Non Plant" in name or "Non-Plant" in name:
+            return "Non Plant Object"
+        return name
+
+    # ==============================
+    # PAGE UI STYLING
+    # ==============================
+    st.markdown("""
+        <style>
+            .stApp { background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%) !important; }
+            .upload-section {
+                background-color: #f8f9fa; border: 2px dashed #4CAF50; border-radius: 15px;
+                padding: 30px; text-align: center; margin: 20px 0;
+            }
+            .upload-text { color: #2e7d32; font-size: 18px; font-weight: 600; }
+            .upload-subtext { color: #6c757d; font-size: 14px; margin-bottom: 20px; }
+            .preview-image {
+                border-radius: 12px; border: 3px solid #4CAF50;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # ==============================
+    # PAGE CONTENT
+    # ==============================
+    st.markdown("""
+    <div style='text-align: center; margin-bottom: 20px;'>
+        <h2 style='color: #2e7d32;'>Disease Detection</h2>
+        <p style='color: #6c757d;'>Upload rice leaf image for analysis</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if 'preview_image' not in st.session_state:
+        st.session_state.preview_image = None
+
+    uploaded_file = st.file_uploader("Choose an image", type=["jpg", "jpeg", "png"], key="file_upload")
+    if uploaded_file and st.session_state.preview_image != uploaded_file:
+        st.session_state.preview_image = uploaded_file
+        st.rerun()
+
+    if st.session_state.preview_image is None:
+        camera_photo = st.camera_input("Take a picture", key="camera_input")
+        if camera_photo:
+            st.session_state.preview_image = camera_photo
+            st.rerun()
+
+    if st.session_state.preview_image:
+        image = Image.open(st.session_state.preview_image)
+        buffered = io.BytesIO()
+        image.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+
+        st.markdown(f"""
+        <div class="upload-section">
+            <img src="https://cdn-icons-png.flaticon.com/128/2659/2659360.png" width="50" style="margin-bottom: 15px;">
+            <div class="upload-text">Image Preview</div>
+            <div class="upload-subtext">Ready for analysis</div>
+            <img src="data:image/png;base64,{img_str}" class="preview-image" width="300">
+        </div>
+        """, unsafe_allow_html=True)
+
+        if st.button("✕ Clear Image", key="clear_btn", use_container_width=True):
+            st.session_state.preview_image = None
+            st.session_state.pop('file_upload', None)
+            st.session_state.pop('camera_input', None)
+            st.rerun()
+    else:
+        st.markdown("""
+        <div class="upload-section">
+            <img src="https://cdn-icons-png.flaticon.com/128/1829/1829589.png" width="60" style="margin-bottom: 15px;">
+            <div class="upload-text">Upload Rice Leaf Image</div>
+            <div class="upload-subtext">Browse files or take a photo to get started</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ==============================
+    # DETECTION LOGIC
+    # ==============================
+    if st.button("DETECT DISEASE", key="detect_btn", use_container_width=True, type="primary"):
+        if not st.session_state.preview_image:
+            st.error("Please upload an image or take a photo first.")
+        else:
+            with st.spinner("Analyzing image..."):
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
+                        image.save(tmp_file, format="JPEG")
+                        tmp_file_path = tmp_file.name
+
+                    client = init_client()
+                    result = client.infer(tmp_file_path, model_id="palayprotector-ver-2-gmeok/1")
+
+                    if result.get("predictions"):
+                        prediction = result["predictions"][0]
+                        disease = prediction["class"]
+                        confidence = prediction["confidence"] * 100
+                        normalized_name = normalize_disease_name(disease)
+
+                        if normalized_name in DISEASE_INFO:
+                            disease_data = DISEASE_INFO[normalized_name]
+
+                            if not disease_data.get('is_non_plant', False):
+                                try:
+                                    severity_level = disease_data.get("severity", "Unknown")
+
+                                    # ✅ Save to Supabase with severity & confidence
+                                    supabase.table("history").insert({
+                                        "user_id": st.session_state.user_id,
+                                        "result": normalized_name,
+                                        "severity": severity_level,
+                                        "confidence": round(confidence, 2),
+                                        "date_detected": datetime.now().isoformat()
+                                    }).execute()
+
+                                    st.toast("✅ Detection result with severity saved to Supabase!", icon="💾")
+                                except Exception as e:
+                                    st.error(f"❌ Failed to save detection: {e}")
+
+                            # === RESULT DISPLAY ===
+                            severity_color = disease_data["severity_color"]
+                            severity = disease_data["severity"]
+                            description = disease_data["description"]
+
+                            st.markdown(f"""
+                                <div style='background:#fff;border-radius:15px;padding:25px;text-align:center;
+                                border-left:6px solid {severity_color};box-shadow:0 4px 10px rgba(0,0,0,0.1);margin-top:20px'>
+                                    <h2 style='color:#2e7d32;'>Detection Result</h2>
+                                    <h3 style='color:#b71c1c;margin-bottom:5px'>{normalized_name}</h3>
+                                    <h4 style='color:#2e7d32;margin-top:0'>{confidence:.1f}%</h4>
+                                    <div style='background-color:{severity_color};color:white;padding:6px 15px;
+                                    border-radius:12px;display:inline-block;font-weight:bold;margin:10px 0'>
+                                        Severity: {severity}
+                                    </div>
+                                    <div style='height:8px;width:80%;margin:10px auto;background-color:#e0e0e0;
+                                    border-radius:10px'>
+                                        <div style='height:100%;width:{confidence}%;background:linear-gradient(90deg,#ff9800,#4caf50);
+                                        border-radius:10px'></div>
+                                    </div>
+                                    <div style='margin-top:15px;background-color:#f8f9fa;border-radius:8px;padding:15px;
+                                    color:#424242;line-height:1.6'>
+                                        <b>About this disease:</b><br>{description}
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
+
+                        else:
+                            st.warning("Unknown disease detected.")
+                    else:
+                        st.error("No predictions returned from the model.")
+                except Exception as e:
+                    st.error(f"Error during detection: {e}")
+
+     # ===== BOTTOM NAVIGATION =====
+    show_bottom_nav('home')
+
+
+
+
+
+
+# ========================================
+# ✅ HISTORY SCREEN (SUPABASE)
+# ========================================
+elif st.session_state.page == "history":
+    from supabase import create_client, Client
+    from datetime import datetime
+    import streamlit as st
+    from config import supabase
+
+
+    st.markdown("""
+    <div style="background:#e8f5e9; color:#1b5e20; 
+                padding:10px; border-radius:8px; 
+                text-align:center; margin-bottom:15px;">
+        <h3 style="margin:0; font-size:30px;">Detection History</h3>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.session_state.user_id is None:
+        st.warning("⚠ Please log in to view your history.")
+    else:
+        try:
+            SUPABASE_URL = "https://sgaicxkbbbgyblfiudum.supabase.co"
+            SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnYWljeGtiYmJneWJsZml1ZHVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1ODgyNzAsImV4cCI6MjA3ODE2NDI3MH0.yoHhNjsxPq2equ6-2ZKBW2KmXmvNSKWhD4JlB0TeNHM"
+            supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+            # ✅ Include severity and confidence in select query
+            res = supabase.table("history") \
+                .select("date_detected, result, severity, confidence") \
+                .eq("user_id", st.session_state.user_id) \
+                .order("date_detected", desc=True) \
+                .execute()
+            rows = res.data
+
+            if rows:
+                table_html = """
+                <style>
+                    .history-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: 16px;
+                        margin: 10px 0;
+                        background: white;
+                        border-radius: 8px;
+                        overflow: hidden;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                    }
+                    .history-table th {
+                        background: #4CAF50;
+                        color: white;
+                        padding: 12px 8px;
+                        text-align: center;
+                        font-weight: 600;
+                    }
+                    .history-table td {
+                        padding: 12px 8px;
+                        text-align: center;
+                        border-bottom: 1px solid #ddd;
+                    }
+                    .history-table tr:nth-child(even) {
+                        background: #f9f9f9;
+                    }
+                    .history-table tr:hover {
+                        background: #f1f8e9;
+                    }
+                    .remedy-btn {
+                        display: inline-block;
+                        background: linear-gradient(135deg, #2E7D32, #1B5E20);
+                        color: white !important;
+                        padding: 8px 16px;
+                        border-radius: 8px;
+                        text-decoration: none;
+                        font-size: 13px;
+                        font-weight: 600;
+                        transition: all 0.3s;
+                        border: none;
+                        cursor: pointer;
+                        white-space: nowrap;
+                    }
+                    .remedy-btn:hover {
+                        background: linear-gradient(135deg, #43A047, #2E7D32);
+                        transform: translateY(-2px);
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    }
+                    .severity-badge {
+                        padding: 4px 10px;
+                        border-radius: 8px;
+                        font-weight: 600;
+                        color: white;
+                    }
+                    .high { background-color: #f44336; }
+                    .moderate { background-color: #ff9800; }
+                    .none { background-color: #4CAF50; }
+                </style>
+
+                <table class="history-table">
+                    <tr>
+                        <th>Date</th>
+                        <th>Disease</th>
+                        <th>Severity</th>
+                        <th>Confidence</th>
+                        <th>Action</th>
+                    </tr>
+                """
+
+                for scan in rows:
+                    date_str = scan.get("date_detected", "")[:10]
+                    disease = scan.get("result", "Unknown")
+                    severity = scan.get("severity", "N/A")
+                    confidence = scan.get("confidence", None)
+
+                    # Set color class for severity
+                    severity_class = "high" if severity.lower() == "high" else "moderate" if severity.lower() == "moderate" else "none"
+                    confidence_display = f"{confidence:.1f}%" if confidence is not None else "—"
+
+                    table_html += f"""
+                    <tr>
+                        <td>{date_str}</td>
+                        <td>{disease}</td>
+                        <td><span class="severity-badge {severity_class}">{severity}</span></td>
+                        <td>{confidence_display}</td>
+                        <td><a href="https://collab-app.com/dashboard?disease={disease}" 
+                               target="_blank" class="remedy-btn">View Remedy</a></td>
+                    </tr>
+                    """
+
+                table_html += "</table>"
+                st.components.v1.html(table_html, height=400, scrolling=True)
+            else:
+                st.info("No history records yet.")
+        except Exception as e:
+            st.error(f"❌ Supabase error: {e}")
+
+    # --- BACK BUTTON ---
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("← Back to Home", key="back_home_history", use_container_width=True, type="primary"):
+            st.session_state.page = "home"
+            st.rerun()
+
+
+ # ===== BOTTOM NAVIGATION =====
+    show_bottom_nav('home')
+
+
+
+
+    
+# ========================================
+# ✅ MODERN INTERACTIVE PROFILE PAGE (SUPABASE)
+# ========================================
+elif st.session_state.page == "profile":
+    from supabase import create_client, Client
+    from datetime import datetime
+    import streamlit as st
+    import pandas as pd
+    from config import supabase
+
+
+    # 🌿 Custom Styling
+    st.markdown("""
+    <style>
+    .profile-header {
+        background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+        padding: 2rem;
+        border-radius: 20px;
+        text-align: center;
+        color: white;
+        margin-bottom: 2rem;
+        box-shadow: 0 8px 24px rgba(46, 125, 50, 0.25);
+    }
+    .profile-avatar img {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        border: 3px solid white;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
+    .stats-row {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: stretch;
+        gap: 10px;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 10px;
+        scrollbar-width: none;
+    }
+    .stats-row::-webkit-scrollbar { display: none; }
+
+    .stat-box {
+        flex: 0 0 180px;
+        background: #fff;
+        border-radius: 16px;
+        padding: 1rem;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        border-top: 4px solid #4CAF50;
+    }
+    .stat-box:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 6px 15px rgba(76,175,80,0.25);
+    }
+    .stat-box img {
+        width: 40px;
+        height: 40px;
+        margin-bottom: 8px;
+    }
+    .stat-value {
+        font-size: 22px;
+        font-weight: 800;
+        color: #2E7D32;
+        margin-bottom: 3px;
+    }
+    .stat-label {
+        color: #555;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+    .activity-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 12px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+        border-left: 5px solid #4CAF50;
+        transition: all 0.3s ease;
+    }
+    .activity-card:hover {
+        transform: scale(1.01);
+        box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # 🌾 Profile Header
+    st.markdown(f"""
+    <div class="profile-header">
+        <div class="profile-avatar">
+            <img src="https://cdn-icons-png.flaticon.com/128/3135/3135715.png">
+        </div>
+        <h2 style="margin: 10px 0;">{st.session_state.logged_user}</h2>
+        <p style="opacity: 0.9;">{st.session_state.user_type}@palayprotector.com</p>
+        <p style="font-size:13px; opacity:0.8;">Member since October 2025</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 🌿 Fetch Stats from Supabase
+    total_scans = healthy_count = detected_count = 0
+    try:
+        res = supabase.table("history").select("result").eq("user_id", st.session_state.user_id).execute()
+        data = res.data
+        total_scans = len(data)
+        healthy_count = sum(1 for d in data if "Healthy" in d["result"])
+        detected_count = total_scans - healthy_count
+    except Exception as e:
+        st.warning(f"⚠ Could not load statistics: {e}")
+
+    accuracy_rate = (healthy_count / total_scans * 100) if total_scans > 0 else 0
+
+    # 🌾 Stat Cards
+    st.markdown(f"""
+    <div class='stats-row'>
+        <div class="stat-box">
+            <img src="https://cdn-icons-png.flaticon.com/128/1055/1055687.png">
+            <div class="stat-value">{total_scans}</div>
+            <div class="stat-label">Total Scans</div>
+        </div>
+        <div class="stat-box">
+            <img src="https://cdn-icons-png.flaticon.com/128/5610/5610944.png">
+            <div class="stat-value">{healthy_count}</div>
+            <div class="stat-label">Healthy Plants</div>
+        </div>
+        <div class="stat-box">
+            <img src="https://cdn-icons-png.flaticon.com/128/564/564619.png">
+            <div class="stat-value">{detected_count}</div>
+            <div class="stat-label">Diseases Found</div>
+        </div>
+        <div class="stat-box">
+            <img src="https://cdn-icons-png.flaticon.com/128/2593/2593635.png">
+            <div class="stat-value">{accuracy_rate:.1f}%</div>
+            <div class="stat-label">Accuracy Rate</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 🌱 Recent Activity Section
+    st.markdown("<h3 style='text-align:center;color:#2E7D32;margin-top:2rem;'>Recent Activity</h3>", unsafe_allow_html=True)
+
+    try:
+        recent = supabase.table("history").select("result, date_detected").eq("user_id", st.session_state.user_id).order("date_detected", desc=True).limit(5).execute().data
+        if recent:
+            for scan in recent:
+                result = scan["result"]
+                color = "#4CAF50" if "Healthy" in result else "#f44336"
+                icon = "https://cdn-icons-png.flaticon.com/128/5610/5610944.png" if "Healthy" in result else "https://cdn-icons-png.flaticon.com/128/564/564619.png"
+                date_str = scan["date_detected"][:19].replace("T", " ")
+                st.markdown(f"""
+                <div class="activity-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <img src="{icon}" width="40">
+                            <div>
+                                <div style="font-weight:700;color:{color};font-size:15px;">{result}</div>
+                                <div style="font-size:12px;color:#777;">{date_str}</div>
+                            </div>
+                        </div>
+                        <div style="background:{color};color:white;padding:6px 12px;border-radius:20px;font-weight:600;">
+                            ✓
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No recent detections yet.")
+    except Exception as e:
+        st.warning(f"Could not load recent scans: {e}")
+
+    # 🚪 Logout Button
+    if st.button("Logout", use_container_width=True, type="primary"):
+        st.session_state.clear()
+        st.session_state.page = "login"
+        st.rerun()
+
+    show_bottom_nav("profile")
+
+
+
+
+
+
+
+    # ========== DISEASE LIBRARY - LEFT ALIGNED ==========
+elif st.session_state.page == "library":
+    
+    # Custom CSS for Library Page
+    st.markdown("""
+    <style>
+    .library-header {
+        text-align: center;
+        color: #2e7d32;
+        margin-bottom: 20px;
+    }
+    .search-container {
+        margin: 20px 0;
+    }
+    .disease-card {
+        background: white;
+        border-left: 5px solid #4CAF50;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 15px 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: transform 0.2s;
+    }
+    .disease-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .disease-title {
+        font-size: 20px;
+        font-weight: bold;
+        color: #1b5e20;
+        margin-bottom: 5px;
+        text-align: left;
+    }
+    .disease-scientific {
+        font-style: italic;
+        color: #6c757d;
+        font-size: 14px;
+        margin-bottom: 10px;
+        text-align: left;
+    }
+    .severity-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 15px;
+        font-size: 12px;
+        font-weight: bold;
+        margin-bottom: 15px;
+    }
+    .severity-high {
+        background-color: #ffebee;
+        color: #c62828;
+    }
+    .severity-medium {
+        background-color: #fff3e0;
+        color: #ef6c00;
+    }
+    .severity-low {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+    }
+    .info-section {
+        margin: 15px 0;
+        text-align: left;
+    }
+    .info-title {
+        font-weight: bold;
+        color: #2e7d32;
+        font-size: 15px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        text-align: left;
+    }
+    .info-content {
+        color: #424242;
+        line-height: 1.6;
+        font-size: 14px;
+        padding-left: 10px;
+        text-align: left;
+    }
+    .tip-box {
+        background: #e8f5e9;
+        border-left: 4px solid #4CAF50;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 20px 0;
+        text-align: left;
+    }
+    
+    /* Ensure all paragraphs are left-aligned */
+    p {
+        text-align: left !important;
+    }
+    
+    /* Left align list items */
+    ul, li {
+        text-align: left !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="library-header">
+        <h2>Rice Disease Library</h2>
+        <p style="color: #6c757d;">Complete guide to rice plant diseases</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Search functionality
+    search = st.text_input("Search diseases...", key="disease_search", placeholder="Type disease name...")
+    
+    # Enhanced disease database with detailed information - ALL 18 DISEASES
+    diseases = [
+        {
+            "name": "Brown Spot",
+            "scientific": "Bipolaris oryzae",
+            "severity": "Medium",
+            "description": "A fungal disease common in nutrient-deficient fields, particularly those lacking potassium.",
+            "symptoms": [
+                "Small circular brown spots on leaves",
+                "Spots have yellow halos",
+                "Affects both leaves and grains",
+                "Reduces grain quality and weight"
+            ],
+            "treatment": [
+                "Apply mancozeb or copper fungicides",
+                "Improve soil nutrition (especially potassium)",
+                "Remove infected plant parts",
+                "Ensure proper drainage"
+            ],
+            "prevention": [
+                "Maintain balanced soil nutrition",
+                "Use healthy certified seeds",
+                "Practice proper water management",
+                "Avoid stress conditions"
+            ],
+            "image": "https://apps.lucidcentral.org/ppp_v9/images/entities/rice_brown_leaf_spot_427/5390490lgpt.jpg"
+        },
+        {
+            "name": "Sheath Blight",
+            "scientific": "Rhizoctonia solani",
+            "severity": "High",
+            "description": "A major fungal disease that thrives in warm, humid conditions with dense plant populations.",
+            "symptoms": [
+                "Oval or irregular lesions on leaf sheaths",
+                "Greenish-gray lesions with brown borders",
+                "Lesions merge and spread upward",
+                "Plant lodging in severe cases"
+            ],
+            "treatment": [
+                "Apply validamycin or hexaconazole fungicides",
+                "Remove infected plant debris after harvest",
+                "Improve air circulation in the field",
+                "Reduce plant density"
+            ],
+            "prevention": [
+                "Use proper plant spacing",
+                "Avoid excessive nitrogen fertilization",
+                "Drain fields periodically",
+                "Practice crop rotation with non-host crops"
+            ],
+            "image": "https://th.bing.com/th/id/R.74ee4c2cbd251001c04c8b984b754cf0?rik=x%2bM1DIRpKy7dQw&riu=http%3a%2f%2f2.bp.blogspot.com%2f_-rGxVjqS77w%2fSsQ7mTG2bnI%2fAAAAAAAAAaY%2fGEv3UJtn7eE%2fw1200-h630-p-k-no-nu%2fSHEATH%2bBLIGHT.jpg&ehk=syWAczjiAoUbiwqvNeQOi48XNm3JzXEqpGJ4wCIym8U%3d&risl=&pid=ImgRaw&r=0"
+        },
+        {
+            "name": "Bacterial Leaf Blight",
+            "scientific": "Xanthomonas oryzae pv. oryzae",
+            "severity": "High",
+            "description": "A serious bacterial disease that affects rice plants at all growth stages, especially during rainy seasons.",
+            "symptoms": [
+                "Water-soaked lesions on leaf tips and edges",
+                "Yellowing of infected leaves",
+                "Wilting of seedlings (kresek symptom)",
+                "White bacterial ooze on leaves"
+            ],
+            "treatment": [
+                "Apply copper-based bactericides",
+                "Remove and destroy infected plants",
+                "Improve field drainage",
+                "Use certified disease-free seeds"
+            ],
+            "prevention": [
+                "Plant resistant varieties",
+                "Avoid injury to plants",
+                "Balance nitrogen fertilization",
+                "Maintain proper spacing for air circulation"
+            ],
+            "image": "https://toagriculture.com/wp-content/uploads/2022/12/Bacterial-blight-disease-of-rice-Soci.jpg"
+        },
+        {
+            "name": "Healthy Rice",
+            "scientific": "Oryza sativa (Healthy)",
+            "severity": "Low",
+            "description": "Healthy rice plants showing normal growth and development without any disease symptoms.",
+            "symptoms": [
+                "Vibrant green leaves",
+                "Uniform growth pattern",
+                "No lesions or discoloration",
+                "Strong and upright stems"
+            ],
+            "treatment": [
+                "No treatment needed",
+                "Continue good agricultural practices",
+                "Monitor regularly for early disease detection",
+                "Maintain preventive measures"
+            ],
+            "prevention": [
+                "Use certified quality seeds",
+                "Practice integrated pest management",
+                "Maintain balanced nutrition",
+                "Ensure proper water management"
+            ],
+            "image": "https://thumbs.dreamstime.com/b/close-up-rice-plant-leaves-dew-drops-190913252.jpg"
+        },
+        {
+            "name": "Rice Hispa",
+            "scientific": "Dicladispa armigera",
+            "severity": "Medium",
+            "description": "A pest infestation causing white streaks on leaves due to larvae feeding between leaf surfaces.",
+            "symptoms": [
+                "White longitudinal streaks on leaves",
+                "Parallel feeding marks",
+                "Dried and papery leaf appearance",
+                "Reduced photosynthesis"
+            ],
+            "treatment": [
+                "Apply appropriate insecticides",
+                "Remove heavily infested leaves",
+                "Flood the field to kill pupae",
+                "Use light traps for adults"
+            ],
+            "prevention": [
+                "Avoid close plant spacing",
+                "Remove weeds around fields",
+                "Use hispa-resistant varieties",
+                "Practice proper field sanitation"
+            ],
+            "image": "https://wordpress-cdn-echoupaladvisory.echoupal.co.in/wp-content/uploads/2022/03/ricehipsa2-1.jpg"
+        },
+        {
+            "name": "False Smut",
+            "scientific": "Ustilaginoidea virens",
+            "severity": "Medium",
+            "description": "A fungal disease affecting rice grains, forming large greenish-black spore balls on panicles.",
+            "symptoms": [
+                "Greenish-black velvety balls on grains",
+                "Individual grains enlarged",
+                "Powder-covered spore balls",
+                "Reduced grain quality"
+            ],
+            "treatment": [
+                "Apply fungicides during flowering",
+                "Remove and burn infected panicles",
+                "Improve field drainage",
+                "Reduce humidity in field"
+            ],
+            "prevention": [
+                "Use resistant varieties",
+                "Avoid excessive nitrogen fertilization",
+                "Maintain proper plant spacing",
+                "Practice crop rotation"
+            ],
+            "image": "https://tse2.mm.bing.net/th/id/OIP.TZd75GWVA5aL_qxqLemfMAHaFj?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3"
+        },
+        {
+            "name": "Leaf Smut",
+            "scientific": "Entyloma oryzae",
+            "severity": "Low",
+            "description": "A minor fungal disease causing small black angular spots on leaves.",
+            "symptoms": [
+                "Small angular black spots on leaves",
+                "Spots scattered on leaf surface",
+                "Minimal yield impact",
+                "More common in wet conditions"
+            ],
+            "treatment": [
+                "Usually no treatment needed",
+                "Improve field drainage if severe",
+                "Reduce leaf wetness duration",
+                "Apply fungicides if widespread"
+            ],
+            "prevention": [
+                "Use quality seeds",
+                "Maintain proper field drainage",
+                "Avoid overhead irrigation",
+                "Practice balanced fertilization"
+            ],
+            "image": "https://bugwoodcloud.org/images/768x512/5390514.jpg"
+        },
+        {
+            "name": "Leaf Scald",
+            "scientific": "Monographella albescens",
+            "severity": "Medium",
+            "description": "A fungal disease causing distinctive banded lesions on rice leaves.",
+            "symptoms": [
+                "Alternating light and dark bands on leaves",
+                "Lesions start from leaf tips",
+                "Yellowing of affected areas",
+                "Premature leaf drying"
+            ],
+            "treatment": [
+                "Apply appropriate fungicides",
+                "Remove infected plant debris",
+                "Improve air circulation",
+                "Ensure proper drainage"
+            ],
+            "prevention": [
+                "Use resistant varieties",
+                "Avoid excessive nitrogen",
+                "Practice proper spacing",
+                "Maintain field sanitation"
+            ],
+            "image": "https://bugwoodcloud.org/images/768x512/5390511.jpg"
+        },
+        {
+            "name": "Narrow Brown Leaf Spot",
+            "scientific": "Cercospora janseana",
+            "severity": "Low",
+            "description": "A minor leaf spot disease causing narrow brown lesions on rice leaves.",
+            "symptoms": [
+                "Narrow brown linear lesions",
+                "Lesions parallel to leaf veins",
+                "Yellow halos around spots",
+                "Minimal impact on yield"
+            ],
+            "treatment": [
+                "Usually no treatment required",
+                "Apply fungicides if severe",
+                "Remove heavily infected leaves",
+                "Improve field conditions"
+            ],
+            "prevention": [
+                "Use healthy seeds",
+                "Maintain balanced nutrition",
+                "Ensure proper drainage",
+                "Practice crop rotation"
+            ],
+            "image": "https://tse1.mm.bing.net/th/id/OIP.YeSPfVgbqHLbF54KLRtl9gHaE9?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3"
+        },
+        {
+            "name": "Rice Blast",
+            "scientific": "Pyricularia oryzae",
+            "severity": "High",
+            "description": "Rice blast is one of the most destructive diseases of rice, causing significant yield losses worldwide.",
+            "symptoms": [
+                "Diamond-shaped lesions on leaves",
+                "White to gray centers with brown margins",
+                "Lesions on leaf nodes and panicles",
+                "Neck rot in severe cases"
+            ],
+            "treatment": [
+                "Apply fungicides containing tricyclazole or azoxystrobin",
+                "Remove infected plant debris",
+                "Maintain proper field drainage",
+                "Use resistant varieties"
+            ],
+            "prevention": [
+                "Use resistant varieties",
+                "Avoid excessive nitrogen fertilization",
+                "Maintain proper water management",
+                "Practice crop rotation"
+            ],
+            "image": "https://tse2.mm.bing.net/th/id/OIP.N5zA4MwJYeI20Q2YGCme2wHaE9?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3"
+        },
+        {
+            "name": "Rice Stripes",
+            "scientific": "Rice stripe virus (RSV)",
+            "severity": "High",
+            "description": "A viral disease transmitted by small brown planthoppers causing chlorotic stripes on leaves.",
+            "symptoms": [
+                "Yellow or chlorotic stripes on leaves",
+                "Stunted plant growth",
+                "Reduced tillering",
+                "Incomplete panicle exertion"
+            ],
+            "treatment": [
+                "Remove infected plants immediately",
+                "Control planthopper vectors",
+                "No direct cure for viral infection",
+                "Use resistant varieties"
+            ],
+            "prevention": [
+                "Plant virus-resistant varieties",
+                "Control planthopper populations",
+                "Adjust planting dates",
+                "Remove volunteer rice plants"
+            ],
+            "image": "https://tse2.mm.bing.net/th/id/OIP.hPJMjM6glnzy2itgSj9H6QHaE8?cb=12&w=1500&h=1000&rs=1&pid=ImgDetMain&o=7&rm=3"
+        },
+        {
+            "name": "Rice Tungro",
+            "scientific": "Rice tungro bacilliform virus (RTBV) & Rice tungro spherical virus (RTSV)",
+            "severity": "High",
+            "description": "A viral disease transmitted by green leafhopper, causing severe stunting and yield loss.",
+            "symptoms": [
+                "Yellow or orange-yellow leaf discoloration",
+                "Stunted plant growth",
+                "Reduced number of tillers",
+                "Incomplete panicle formation"
+            ],
+            "treatment": [
+                "Remove and destroy infected plants immediately",
+                "Control leafhopper vectors with insecticides",
+                "No direct cure available for viral infection",
+                "Replant with resistant varieties if severe"
+            ],
+            "prevention": [
+                "Plant tungro-resistant varieties",
+                "Control green leafhopper populations",
+                "Adjust planting dates to avoid peak vector activity",
+                "Remove weeds that host leafhoppers"
+            ],
+            "image": "https://tse1.mm.bing.net/th/id/OIP.rtDAwQ8P15ghoq0nTNZu3gHaFj?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3"
+        }
+    ]
+    
+    # Filter diseases based on search
+    filtered_diseases = diseases
+    if search and search.strip():  # Check if search has actual text
+        search_lower = search.lower().strip()
+        filtered_diseases = [
+            d for d in diseases 
+            if search_lower in d['name'].lower() or search_lower in d['scientific'].lower()
+        ]
+    
+    # Display filtered diseases
+    if filtered_diseases:
+        for disease in filtered_diseases:
+            with st.expander(f"**{disease['name']}** - *{disease['scientific']}*", expanded=False):
+                col1, col2 = st.columns([1, 3])
+                
+                with col1:
+                    st.image(disease['image'], width=150)
+                
+                with col2:
+                    # Severity badge
+                    severity_class = f"severity-{disease['severity'].lower()}"
+                    st.markdown(f"""
+                    <div class="{severity_class}" style="display: inline-block; padding: 4px 12px; border-radius: 15px; font-size: 12px; font-weight: bold;">
+                        Severity: {disease['severity']}
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Description - LEFT ALIGNED
+                st.markdown(f"<p style='margin: 15px 0; color: #424242; text-align: left;'>{disease['description']}</p>", unsafe_allow_html=True)
+                
+                # Symptoms
+                st.markdown("""
+                <div class="info-title">
+                    <img src="https://cdn-icons-png.flaticon.com/128/2755/2755944.png" width="20" style="margin-right: 8px;">
+                    Symptoms
+                </div>
+                """, unsafe_allow_html=True)
+                for symptom in disease['symptoms']:
+                    st.markdown(f"<div style='text-align: left;'>• {symptom}</div>", unsafe_allow_html=True)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # Treatment
+                st.markdown("""
+                <div class="info-title">
+                    <img src="https://cdn-icons-png.flaticon.com/128/17085/17085104.png" width="20" style="margin-right: 8px;">
+                    Treatment
+                </div>
+                """, unsafe_allow_html=True)
+                for treatment in disease['treatment']:
+                    st.markdown(f"<div style='text-align: left;'>• {treatment}</div>", unsafe_allow_html=True)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # Prevention
+                st.markdown("""
+                <div class="info-title">
+                    <img src="https://cdn-icons-png.flaticon.com/128/3774/3774299.png" width="20" style="margin-right: 8px;">
+                    Prevention
+                </div>
+                """, unsafe_allow_html=True)
+                for prevention in disease['prevention']:
+                    st.markdown(f"<div style='text-align: left;'>• {prevention}</div>", unsafe_allow_html=True)
+    else:
+        st.info("No diseases found matching your search.")
+    
+    # Tips section at bottom
+    st.markdown("""
+    <div class="tip-box">
+        <div style="font-weight: bold; color: #2e7d32; margin-bottom: 8px; text-align: left;">
+            💡 Pro Tips for Disease Management
+        </div>
+        <div style="font-size: 14px; color: #424242; text-align: left;">
+            • Regular monitoring is key to early detection<br>
+            • Always use certified disease-free seeds<br>
+            • Maintain proper field sanitation<br>
+            • Rotate crops to break disease cycles<br>
+            • Consult agricultural extension services for severe cases
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+     # ===== BOTTOM NAVIGATION =====
+    show_bottom_nav('home')

@@ -1,0 +1,8 @@
+opencv-python-headless
+inference-sdk
+roboflow
+pillow
+streamlit
+supabase
+numpy
+pandas

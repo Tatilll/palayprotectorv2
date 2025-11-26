@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+*.db
+OneDrive/
+Desktop/
+Documents/
+Downloads/
+AppData/
+.vscode/
+.streamlit/
